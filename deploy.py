@@ -1,6 +1,7 @@
 import os
 import paramiko
 import getpass
+import shutil
 
 # --- Server Configuration ---
 # Replace these with your server's details.
