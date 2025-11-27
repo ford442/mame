@@ -19,7 +19,6 @@ os.makedirs('./dist', exist_ok=True)
 
 # List of files to copy
 files_to_copy = [
-    ('./gng_web.html', './dist/gng_web.html'),
     ('./gng_web.js', './dist/gng_web.js'),
     ('./gng_web.wasm', './dist/gng_web.wasm'),
 ]
