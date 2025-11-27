@@ -9,15 +9,23 @@ HOSTNAME = "1ink.us"
 PORT = 22  # Default SFTP/SSH port
 USERNAME = "ford442"
 
-
 LOCAL_DIRECTORY = "dist"
 
 REMOTE_DIRECTORY = "test.1ink.us/mame-gng"
 
-mkdir ./dist
-cp ./gng_web.html ./dist/gng_web.html
-cp ./gng_web.js ./dist/gng_web.js
-cp ./gng_web.wasm ./dist/gng_web.wasm
+# Create the dist directory if it doesn't exist
+os.makedirs('./dist', exist_ok=True)
+
+# List of files to copy
+files_to_copy = [
+    ('./gng_web.html', './dist/gng_web.html'),
+    ('./gng_web.js', './dist/gng_web.js'),
+    ('./gng_web.wasm', './dist/gng_web.wasm'),
+]
+
+for src, dst in files_to_copy:
+    shutil.copy2(src, dst)
+    print(f"Copied {src} to {dst}")
 
 def upload_directory(sftp_client, local_path, remote_path):
     """
