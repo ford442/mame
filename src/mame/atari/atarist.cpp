@@ -1411,7 +1411,7 @@ void st_state::common(machine_config &config)
 
 	// cartridge
 
-	STCART_CONNECTOR(config, m_cart, stcart_intf, nullptr);
+	STCART_CONNECTOR(config, m_cart, stcart_intf, "rom");
 
 	// software lists
 	SOFTWARE_LIST(config, "flop_list").set_original("st_flop");
@@ -1934,6 +1934,12 @@ ROM_END
 //-------------------------------------------------
 //  ROM( stacy )
 //-------------------------------------------------
+
+// STacy ROM part numbers (type TC571001D-15):
+// C301119-001 + C301120-001
+// C301121-001 + C301122-001
+// C301125-001 + C301126-001 Germany
+// C301133-001 + C301134-001
 
 #if 0
 ROM_START( stacy )

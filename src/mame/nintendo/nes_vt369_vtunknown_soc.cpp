@@ -4,6 +4,15 @@
 #include "emu.h"
 #include "nes_vt369_vtunknown_soc.h"
 
+#include "cpu/m6502/rp2a03.h"
+#include "cpu/m6502/vt3xx_spu.h"
+#include "sound/nes_apu_vt.h"
+#include "m6502_swap_op_d5_d6.h"
+#include "video/ppu2c0x_vt.h"
+
+#include "screen.h"
+#include "speaker.h"
+
 #define LOG_VT3XX_SOUND     (1U << 1)
 
 #define LOG_ALL     (LOG_VT3XX_SOUND)
@@ -18,6 +27,8 @@ DEFINE_DEVICE_TYPE(VT369_SOC_INTROM_NOSWAP, vt369_soc_introm_noswap_device, "vt3
 DEFINE_DEVICE_TYPE(VT369_SOC_INTROM_SWAP,   vt369_soc_introm_swap_device,   "vt369_soc_swap",    "VT369 series System on a Chip (with D5/D6 opcode swapping)")
 DEFINE_DEVICE_TYPE(VT369_SOC_INTROM_ALTSWAP,vt369_soc_introm_altswap_device,"vt369_soc_altswap", "VT369 series System on a Chip (with D1/D4 opcode swapping)")
 DEFINE_DEVICE_TYPE(VT369_SOC_INTROM_VIBESSWAP,vt369_soc_introm_vibesswap_device,"vt369_soc_vibesswap", "VT369 series System on a Chip (with D4/D5 opcode swapping)")
+DEFINE_DEVICE_TYPE(VT369_SOC_INTROM_GBOX2020,vt369_soc_introm_gbox2020_device,"vt369_soc_gbox2020", "VT369 series System on a Chip (with D6/D7 + D1/D2 opcode swapping)")
+DEFINE_DEVICE_TYPE(VT369_SOC_INTROM_S10SWAP,vt369_soc_introm_s10swap_device,"vt369_soc_s10swap", "VT369 series System on a Chip (with D4/D5 + D1/D2 opcode swapping)")
 
 // uncertain
 DEFINE_DEVICE_TYPE(VT3XX_SOC, vt3xx_soc_base_device,          "vt3xx_unknown_soc_cy", "VT3xx series System on a Chip (CY)")
@@ -30,7 +41,7 @@ vt3xx_soc_base_device::vt3xx_soc_base_device(const machine_config& mconfig, cons
 }
 
 vt3xx_soc_base_device::vt3xx_soc_base_device(const machine_config& mconfig, device_type type, const char* tag, device_t* owner, u32 clock) :
-	nes_vt09_soc_device(mconfig, type, tag, owner, clock),
+	nes_vt02_vt03_soc_device(mconfig, type, tag, owner, clock),
 	m_soundcpu(*this, "soundcpu"),
 	m_sound_timer(nullptr),
 	m_internal_rom(*this, "internal"),
@@ -62,8 +73,23 @@ vt369_soc_introm_altswap_device::vt369_soc_introm_altswap_device(const machine_c
 {
 }
 
+vt369_soc_introm_vibesswap_device::vt369_soc_introm_vibesswap_device(const machine_config& mconfig, device_type type, const char* tag, device_t* owner, u32 clock) :
+	vt369_soc_introm_noswap_device(mconfig, type, tag, owner, clock)
+{
+}
+
 vt369_soc_introm_vibesswap_device::vt369_soc_introm_vibesswap_device(const machine_config& mconfig, const char* tag, device_t* owner, u32 clock) :
-	vt369_soc_introm_noswap_device(mconfig, VT369_SOC_INTROM_VIBESSWAP, tag, owner, clock)
+	vt369_soc_introm_vibesswap_device(mconfig, VT369_SOC_INTROM_VIBESSWAP, tag, owner, clock)
+{
+}
+
+vt369_soc_introm_gbox2020_device::vt369_soc_introm_gbox2020_device(const machine_config& mconfig, const char* tag, device_t* owner, u32 clock) :
+	vt369_soc_introm_vibesswap_device(mconfig, VT369_SOC_INTROM_GBOX2020, tag, owner, clock)
+{
+}
+
+vt369_soc_introm_s10swap_device::vt369_soc_introm_s10swap_device(const machine_config& mconfig, const char* tag, device_t* owner, u32 clock) :
+	vt369_soc_introm_vibesswap_device(mconfig, VT369_SOC_INTROM_S10SWAP, tag, owner, clock)
 {
 }
 
@@ -106,7 +132,7 @@ void vt3xx_soc_base_device::device_add_mconfig(machine_config& config)
 
 }
 
-void vt3xx_soc_base_device::vt369_soundcpu_control_w(offs_t offset, u8 data)
+void vt3xx_soc_base_device::vt369_soundcpu_control_w(u8 data)
 {
 	logerror("%s: write to sound cpu control reg (reset etc.) %02x\n", machine().describe_context(), data);
 
@@ -266,7 +292,7 @@ void vt3xx_soc_base_device::vt369_map(address_map &map)
 
 	// the ALU is not VT1682 compatible
 	map(0x4130, 0x4137).rw(FUNC(vt3xx_soc_base_device::alu_r), FUNC(vt3xx_soc_base_device::alu_w));
-	map(0x4138, 0x413d).r(FUNC(vt3xx_soc_base_device::alu_r)); // mirror?
+	map(0x4138, 0x413d).rw(FUNC(vt3xx_soc_base_device::alu_r), FUNC(vt3xx_soc_base_device::alu_w)); // mirror or 2nd ALU?
 
 	// 4144
 	// 4147
@@ -333,7 +359,7 @@ void vt3xx_soc_base_device::vt_dma_w(u8 data)
 	}
 	else
 	{
-		nes_vt09_soc_device::vt_dma_w(data);
+		nes_vt02_vt03_soc_device::vt_dma_w(data);
 	}
 }
 
@@ -543,7 +569,7 @@ void vt3xx_soc_base_device::vt369_sound_external_map(address_map &map)
 }
 
 
-void vt3xx_soc_base_device::vt369_411c_bank6000_enable_w(offs_t offset, u8 data)
+void vt3xx_soc_base_device::vt369_411c_bank6000_enable_w(u8 data)
 {
 	if (m_bank6000_enable != data)
 	{
@@ -554,7 +580,7 @@ void vt3xx_soc_base_device::vt369_411c_bank6000_enable_w(offs_t offset, u8 data)
 	m_bank6000_enable = data;
 }
 
-void vt3xx_soc_base_device::vt369_411d_w(offs_t offset, u8 data)
+void vt3xx_soc_base_device::vt369_411d_w(u8 data)
 {
 	// controls chram access and mapper emulation modes in later models
 	// also written by rtvgc300 and rtvgc300fz (with the same value as 411e)
@@ -564,14 +590,14 @@ void vt3xx_soc_base_device::vt369_411d_w(offs_t offset, u8 data)
 	update_banks();
 }
 
-void vt3xx_soc_base_device::vt369_411e_w(offs_t offset, u8 data)
+void vt3xx_soc_base_device::vt369_411e_w(u8 data)
 {
 	logerror("%s: vt369_411e_w (%02x) (external bankswitch + more?)\n", machine().describe_context(), data);
 	m_411e_write_cb(data);
 }
 
 
-void vt3xx_soc_base_device::vt369_4112_bank6000_select_w(offs_t offset, u8 data)
+void vt3xx_soc_base_device::vt369_4112_bank6000_select_w(u8 data)
 {
 	logerror("%s: set bank at 0x6000 to %02x\n", machine().describe_context(), data);
 	m_bank6000 = data;
@@ -816,11 +842,51 @@ void vt369_soc_introm_altswap_device::device_start()
 	m_encryption_allowed = true;
 }
 
+void vt369_soc_introm_vibesswap_device::device_add_mconfig(machine_config& config)
+{
+	vt369_soc_introm_noswap_device::device_add_mconfig(config);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &vt369_soc_introm_vibesswap_device::nes_vt_vibes_map);
+}
+
 void vt369_soc_introm_vibesswap_device::device_start()
 {
 	vt3xx_soc_base_device::device_start();
 	downcast<rp2a03_core_swap_op_d5_d6 &>(*m_maincpu).set_which_crypt(2);
 	m_encryption_allowed = true;
+}
+
+void vt369_soc_introm_gbox2020_device::device_start()
+{
+	vt3xx_soc_base_device::device_start();
+	downcast<rp2a03_core_swap_op_d5_d6 &>(*m_maincpu).set_which_crypt(3);
+	m_encryption_allowed = true;
+}
+
+void vt369_soc_introm_s10swap_device::device_start()
+{
+	vt3xx_soc_base_device::device_start();
+	downcast<rp2a03_core_swap_op_d5_d6 &>(*m_maincpu).set_which_crypt(4);
+	m_encryption_allowed = true;
+}
+
+void vt369_soc_introm_vibesswap_device::vibes_411c_w(u8 data)
+{
+	if (m_encryption_allowed)
+	{
+		if (data == 0x05)
+			downcast<rp2a03_core_swap_op_d5_d6&>(*m_maincpu).set_encryption_state(false);
+		else if (data == 0x07 || data == 0x87)
+			downcast<rp2a03_core_swap_op_d5_d6&>(*m_maincpu).set_encryption_state(true);
+		else
+			logerror("%s: vibes_411c_w %02x (unknown)\n", machine().describe_context(), data);
+	}
+}
+
+void vt369_soc_introm_vibesswap_device::nes_vt_vibes_map(address_map &map)
+{
+	vt3xx_soc_base_device::vt369_map(map);
+	map(0x411c, 0x411c).w(FUNC(vt369_soc_introm_vibesswap_device::vibes_411c_w));
 }
 
 /***********************************************************************************************************************************************************/
