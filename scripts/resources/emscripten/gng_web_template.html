@@ -164,12 +164,11 @@ arguments: [
         "-rompath", "/roms", // Tell MAME to look in the virtual /roms folder
         "-window",          // Run in window mode (helps with web canvas)
         "-verbose",         // Print loaded files to console (helps debugging)
-        "-skip_gameinfo",    // Skip the "Type OK to continue" screen
-   //"-resolution", "1024x768",
-
-    // ADD THESE LINES:
-    "-samplerate", "48000",   // Standardize sample rate
-     "-audio_latency", "1"     // Increase buffer size (higher = smoother sound, slight delay)
+        "-skip_gameinfo",   // Skip the "Type OK to continue" screen
+        "-samplerate", "48000",   // Standardize sample rate for better audio
+        "-video", "bgfx",         // Use BGFX video backend
+        "-bgfx_backend", "webgpu", // Request WebGPU backend
+        "-bgfx_screen_chains", "xbr/xbr-lv2-fast" // Apply smoothing shader for "even interpolation"
 ],
 
 };
