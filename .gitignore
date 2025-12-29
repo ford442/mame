@@ -8,7 +8,7 @@
 *.L68
 *.S68
 .DS_Store
-
+emsdk
 /*
 /*/
 !/.github/
