@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './App.css';
 
 interface MAMEModuleType {
@@ -13,8 +13,12 @@ declare global {
   }
 }
 
-const App: React.FC = () => {
+// Configuration - path to the compiled MAME JavaScript file
+const MAME_JS_PATH = process.env.REACT_APP_MAME_JS_PATH || 'mame.js';
+
+const App = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scriptRef = useRef<HTMLScriptElement | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +37,7 @@ const App: React.FC = () => {
 
       // Load the MAME JavaScript file
       const script = document.createElement('script');
-      script.src = 'mame.js'; // This will be the compiled MAME JS file
+      script.src = MAME_JS_PATH;
       script.async = true;
       script.onload = () => {
         console.log('MAME script loaded');
@@ -43,9 +47,12 @@ const App: React.FC = () => {
         setIsLoading(false);
       };
       document.body.appendChild(script);
+      scriptRef.current = script;
 
       return () => {
-        document.body.removeChild(script);
+        if (scriptRef.current && document.body.contains(scriptRef.current)) {
+          document.body.removeChild(scriptRef.current);
+        }
       };
     }
   }, []);

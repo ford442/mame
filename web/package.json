@@ -12,8 +12,8 @@
   "author": "MAME Team",
   "license": "BSD-3-Clause",
   "devDependencies": {
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
+    "@types/react": "^18.2.79",
+    "@types/react-dom": "^18.2.25",
     "css-loader": "^6.8.0",
     "html-webpack-plugin": "^5.5.0",
     "style-loader": "^3.3.0",
