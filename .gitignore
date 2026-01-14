@@ -49,3 +49,8 @@ regtests/chdman/temp
 regtests/jedutil/output
 /CMakeLists.txt
 /samples
+web/node_modules
+web/dist
+web/.cache
+web/package-lock.json
+web/yarn.lock
