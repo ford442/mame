@@ -50,6 +50,8 @@ const App = () => {
       scriptRef.current = script;
 
       return () => {
+        // Clean up the Module to prevent issues on hot reloads
+        window.Module = { canvas: null };
         if (scriptRef.current && document.body.contains(scriptRef.current)) {
           document.body.removeChild(scriptRef.current);
         }
