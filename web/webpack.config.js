@@ -31,7 +31,7 @@ module.exports = {
       inject: 'body',
     }),
     new webpack.DefinePlugin({
-      'process.env.REACT_APP_MAME_JS_PATH': JSON.stringify(process.env.REACT_APP_MAME_JS_PATH || 'mame.js'),
+      'process.env.REACT_APP_MAME_JS_PATH': JSON.stringify(process.env.REACT_APP_MAME_JS_PATH || 'gng_web.js'),
     }),
   ],
   devServer: {
