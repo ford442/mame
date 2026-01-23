@@ -8,7 +8,7 @@
 *.L68
 *.S68
 .DS_Store
-
+1joy
 /*
 /*/
 !/.github/
@@ -49,3 +49,4 @@ regtests/chdman/temp
 regtests/jedutil/output
 /CMakeLists.txt
 /samples
+emsdk

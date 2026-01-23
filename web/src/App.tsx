@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import './App.css';
 import KeyboardHandler from './KeyboardHandler';
+import { joy } from '../1joy';
 
 interface MAMEModuleType {
   canvas: HTMLCanvasElement | null;
@@ -78,6 +79,11 @@ const App = () => {
     }
   };
 
+  const handle1joy = () => {
+    joy();
+    console.log('1joy button clicked');
+  };
+
   return (
     <div className="app">
       <KeyboardHandler enabled={isReady} />
@@ -88,6 +94,7 @@ const App = () => {
             <>
               <button onClick={handleSoftReset}>Soft Reset</button>
               <button onClick={handleHardReset}>Hard Reset</button>
+              <button onClick={handle1joy}>1joy</button>
             </>
           )}
         </div>
@@ -124,3 +131,4 @@ const App = () => {
 };
 
 export default App;
+
