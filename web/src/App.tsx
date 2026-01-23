@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import './App.css';
 import KeyboardHandler from './KeyboardHandler';
-import { joy } from '../1joy';
+import { joy } from '../1joy/index';
 
 interface MAMEModuleType {
   canvas: HTMLCanvasElement | null;
