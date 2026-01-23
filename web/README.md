@@ -70,6 +70,22 @@ The web application is designed to load and run MAME compiled with Emscripten. I
 2. Sets up the Emscripten Module configuration
 3. Loads the compiled MAME JavaScript file
 4. Provides UI controls for interacting with MAME (reset buttons, etc.)
+5. Handles keyboard input and maps it to MAME's SDL keyboard system
+
+### Keyboard Controls
+
+The application includes a keyboard handler that maps browser keyboard events to MAME's SDL input system. See [KEYBOARD.md](KEYBOARD.md) for detailed information about:
+
+- Keyboard control mappings
+- SDL scancode reference
+- Customization guide
+
+**Default controls for Ghosts n Goblins:**
+- Movement: W/A/S/D or Arrow Keys
+- Attack: K
+- Jump: L
+- Start: 5
+- Coin: 1
 
 ### Custom HTML Template
 

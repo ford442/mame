@@ -91,3 +91,45 @@
 .app-footer p {
   margin: 0;
 }
+
+.keyboard-info {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: #282c34;
+  border-radius: 8px;
+  max-width: 600px;
+  text-align: center;
+}
+
+.keyboard-info h3 {
+  margin: 0 0 0.5rem 0;
+  color: #61dafb;
+  font-size: 1.1rem;
+}
+
+.keyboard-info p {
+  margin: 0;
+  color: #ccc;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.keyboard-info dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 1rem;
+  text-align: left;
+}
+
+.keyboard-info dt {
+  color: #61dafb;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.keyboard-info dd {
+  margin: 0;
+  color: #ccc;
+  font-size: 0.9rem;
+}
