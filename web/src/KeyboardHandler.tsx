@@ -29,8 +29,8 @@ const SDL_SCANCODES: { [key: string]: number } = {
 
 // Helper function to get SDL scancode from browser key
 const getScancode = (key: string): number | null => {
-  // Convert to uppercase for letters
-  const upperKey = key.length === 1 ? key.toUpperCase() : key;
+  // Convert single letter keys to uppercase
+  const upperKey = /^[a-zA-Z0-9]$/.test(key) ? key.toUpperCase() : key;
   return SDL_SCANCODES[upperKey] ?? null;
 };
 
@@ -63,6 +63,11 @@ const KeyboardHandler = ({ enabled }: KeyboardHandlerProps) => {
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
+      // Prevent default browser behavior for game keys (consistency with keydown)
+      if (shouldPreventDefault(event.key)) {
+        event.preventDefault();
+      }
+
       const scancode = getScancode(event.key);
       if (scancode !== null && window.JSMAME?.sdl_sendkeyboardkey) {
         window.JSMAME.sdl_sendkeyboardkey(0x00, scancode); // 0x00 = key released
