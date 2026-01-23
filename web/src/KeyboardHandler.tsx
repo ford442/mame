@@ -29,12 +29,14 @@ const SDL_SCANCODES: { [key: string]: number } = {
 
 // Helper function to get SDL scancode from browser key
 const getScancode = (key: string): number | null => {
-  // Convert single letter keys to uppercase
-  const upperKey = /^[a-zA-Z0-9]$/.test(key) ? key.toUpperCase() : key;
-  return SDL_SCANCODES[upperKey] ?? null;
+  // Normalize alphanumeric keys to uppercase for SDL_SCANCODES lookup
+  // Other keys (ArrowUp, Enter, etc.) remain as-is
+  const normalizedKey = /^[a-zA-Z0-9]$/.test(key) ? key.toUpperCase() : key;
+  return SDL_SCANCODES[normalizedKey] ?? null;
 };
 
 // Game control keys that should prevent default browser behavior
+// All keys normalized to lowercase for consistent comparison
 const GAME_KEYS = ['w', 'a', 's', 'd', 'k', 'l', '1', '5', ' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
 
 // Helper function to prevent default for game control keys

@@ -99,9 +99,20 @@ const App = () => {
           <canvas ref={canvasRef} id="canvas" />
         </div>
         {isReady && (
-          <div className="keyboard-info">
+          <div className="keyboard-info" role="complementary" aria-label="Game Controls">
             <h3>Controls (Ghosts n Goblins):</h3>
-            <p>Movement: W/A/S/D or Arrow Keys | Attack: K | Jump: L | Start: 5 | Coin: 1</p>
+            <dl>
+              <dt>Movement:</dt>
+              <dd>W/A/S/D or Arrow Keys</dd>
+              <dt>Attack:</dt>
+              <dd>K</dd>
+              <dt>Jump:</dt>
+              <dd>L</dd>
+              <dt>Start:</dt>
+              <dd>5</dd>
+              <dt>Coin:</dt>
+              <dd>1</dd>
+            </dl>
           </div>
         )}
       </main>
