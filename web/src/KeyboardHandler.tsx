@@ -27,6 +27,21 @@ const SDL_SCANCODES: { [key: string]: number } = {
   Alt: 226,     // Left Alt
 };
 
+// Helper function to get SDL scancode from browser key
+const getScancode = (key: string): number | null => {
+  // Convert to uppercase for letters
+  const upperKey = key.length === 1 ? key.toUpperCase() : key;
+  return SDL_SCANCODES[upperKey] ?? null;
+};
+
+// Game control keys that should prevent default browser behavior
+const GAME_KEYS = ['w', 'a', 's', 'd', 'k', 'l', '1', '5', ' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
+
+// Helper function to prevent default for game control keys
+const shouldPreventDefault = (key: string): boolean => {
+  return GAME_KEYS.includes(key.toLowerCase());
+};
+
 interface KeyboardHandlerProps {
   enabled: boolean;
 }
@@ -64,19 +79,6 @@ const KeyboardHandler = ({ enabled }: KeyboardHandlerProps) => {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [enabled]);
-
-  // Helper function to get SDL scancode from browser key
-  const getScancode = (key: string): number | null => {
-    // Convert to uppercase for letters
-    const upperKey = key.length === 1 ? key.toUpperCase() : key;
-    return SDL_SCANCODES[upperKey] ?? null;
-  };
-
-  // Helper function to prevent default for game control keys
-  const shouldPreventDefault = (key: string): boolean => {
-    const gameKeys = ['w', 'a', 's', 'd', 'k', 'l', '1', '5', ' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
-    return gameKeys.includes(key.toLowerCase()) || gameKeys.includes(key);
-  };
 
   return null; // This component doesn't render anything
 };
