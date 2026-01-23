@@ -1,15 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import './App.css';
+import KeyboardHandler from './KeyboardHandler';
 
 interface MAMEModuleType {
   canvas: HTMLCanvasElement | null;
   onRuntimeInitialized?: () => void;
 }
 
+interface JSMAMEType {
+  sdl_sendkeyboardkey?: (state: number, scancode: number) => void;
+  soft_reset?: () => void;
+  hard_reset?: () => void;
+}
+
 declare global {
   interface Window {
     Module: MAMEModuleType;
-    JSMAME?: any;
+    JSMAME?: JSMAMEType;
   }
 }
 
@@ -73,6 +80,7 @@ const App = () => {
 
   return (
     <div className="app">
+      <KeyboardHandler enabled={isReady} />
       <header className="app-header">
         <h1>MAME Web</h1>
         <div className="controls">
@@ -90,6 +98,12 @@ const App = () => {
         <div className="canvas-container">
           <canvas ref={canvasRef} id="canvas" />
         </div>
+        {isReady && (
+          <div className="keyboard-info">
+            <h3>Controls (Ghosts n Goblins):</h3>
+            <p>Movement: W/A/S/D or Arrow Keys | Attack: K | Jump: L | Start: 5 | Coin: 1</p>
+          </div>
+        )}
       </main>
       <footer className="app-footer">
         <p>MAME - Multiple Arcade Machine Emulator</p>
