@@ -22,7 +22,7 @@ declare global {
 }
 
 // Configuration - path to the compiled MAME JavaScript file
-const MAME_JS_PATH = process.env.REACT_APP_MAME_JS_PATH || 'mame.js';
+const MAME_JS_PATH = process.env.REACT_APP_MAME_JS_PATH || 'gng_web.js';
 
 const App = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
