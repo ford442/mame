@@ -27,10 +27,12 @@ echo "--- STEP 2: COMPILE THE GAME ---"
 
 # Extra flags requested by user
 # -o gng_web.js: Output filename
-# -sMODULARIZE -sEXPORT_ES6=1: Create ES6 module
-EXTRA_LDFLAGS="-o gng_web.js -sMODULARIZE -sEXPORT_ES6=1"
+# removed -sMODULARIZE -sEXPORT_ES6=1 to match App.tsx global usage
+EXTRA_LDFLAGS="-o gng_web.js"
 
 # Main build command
+# Added -sASSERTIONS=1 for debugging
+# Added -sGL_UNSAFE_OPTS=0 to fix GL emulation warnings/crashes
 emmake make \
  SUBTARGET=gng_web \
  OSD=sdl \
@@ -40,7 +42,7 @@ emmake make \
  NOWERROR=1 \
  USE_BGFX=0 \
  SOURCES=src/mame/capcom/gng.cpp \
- LDFLAGS="-lGL -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sDISABLE_EXCEPTION_CATCHING=0 -sLEGACY_GL_EMULATION=1 -sFORCE_FILESYSTEM=1 -sUSE_SDL=2 -sASSERTIONS=0 --embed-file ${ROM_PATH}@/roms/gng.zip ${EXTRA_LDFLAGS}" \
+ LDFLAGS="-lGL -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sDISABLE_EXCEPTION_CATCHING=0 -sLEGACY_GL_EMULATION=1 -sFORCE_FILESYSTEM=1 -sUSE_SDL=2 -sASSERTIONS=1 -sGL_UNSAFE_OPTS=0 --embed-file ${ROM_PATH}@/roms/gng.zip ${EXTRA_LDFLAGS}" \
  -j$(nproc)
 
 echo "--- Moving files to public/ ---"

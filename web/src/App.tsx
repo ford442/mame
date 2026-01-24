@@ -6,6 +6,9 @@ import { joy } from '../1joy/index';
 interface MAMEModuleType {
   canvas: HTMLCanvasElement | null;
   onRuntimeInitialized?: () => void;
+  arguments?: string[];
+  print?: (text: string) => void;
+  printErr?: (text: string) => void;
 }
 
 interface JSMAMEType {
@@ -36,6 +39,9 @@ const App = () => {
     if (canvasRef.current) {
       window.Module = {
         canvas: canvasRef.current,
+        arguments: ['-verbose'],
+        print: (text: string) => console.log(text),
+        printErr: (text: string) => console.error(text),
         onRuntimeInitialized: () => {
           console.log('MAME Runtime Initialized');
           setIsLoading(false);
@@ -57,12 +63,22 @@ const App = () => {
       document.body.appendChild(script);
       scriptRef.current = script;
 
+      // Global error handler for runtime crashes
+      const originalOnError = window.onerror;
+      window.onerror = (message, source, lineno, colno, error) => {
+        console.error('MAME Error:', message);
+        setError(`Error: ${message}`);
+        if (originalOnError) originalOnError(message, source, lineno, colno, error);
+        return false;
+      };
+
       return () => {
         // Clean up the Module to prevent issues on hot reloads
         window.Module = { canvas: null };
         if (scriptRef.current && document.body.contains(scriptRef.current)) {
           document.body.removeChild(scriptRef.current);
         }
+        window.onerror = originalOnError;
       };
     }
   }, []);
