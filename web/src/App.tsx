@@ -88,7 +88,9 @@ const App = () => {
 
     // Watch for size changes
     const resizeObserver = new ResizeObserver(() => {
-        resizeCanvas();
+        window.requestAnimationFrame(() => {
+            resizeCanvas();
+        });
     });
 
     resizeObserver.observe(canvasRef.current);
