@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import './App.css';
-import KeyboardHandler from './KeyboardHandler';
+import KeyboardHandler, { KeyMapping } from './KeyboardHandler';
 import { joy } from '../1joy/index';
 
 interface MAMEModuleType {
@@ -27,19 +27,65 @@ declare global {
 // Configuration - path to the compiled MAME JavaScript file
 const MAME_JS_PATH = process.env.REACT_APP_MAME_JS_PATH || 'gng_web.js';
 
+// Default Controls for GNG
+const CONTROLS = [
+  { label: 'Up', mameKey: 'ArrowUp', defaultKey: 'ArrowUp' },
+  { label: 'Down', mameKey: 'ArrowDown', defaultKey: 'ArrowDown' },
+  { label: 'Left', mameKey: 'ArrowLeft', defaultKey: 'ArrowLeft' },
+  { label: 'Right', mameKey: 'ArrowRight', defaultKey: 'ArrowRight' },
+  { label: 'Attack', mameKey: 'k', defaultKey: 'k' },
+  { label: 'Jump', mameKey: 'l', defaultKey: 'l' },
+  { label: 'Start', mameKey: '1', defaultKey: '1' },
+  { label: 'Coin', mameKey: '5', defaultKey: '5' },
+];
+
 const App = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scriptRef = useRef<HTMLScriptElement | null>(null);
+
+  // Game State
+  const [gameStarted, setGameStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Config State
+  const [userKeys, setUserKeys] = useState<{ [mameKey: string]: string }>({});
+  const [listeningFor, setListeningFor] = useState<string | null>(null);
+  const [startFullscreen, setStartFullscreen] = useState(false);
+
+  // Initialize default keys
   useEffect(() => {
-    // Setup Emscripten Module
+    const defaults: { [key: string]: string } = {};
+    CONTROLS.forEach(c => defaults[c.mameKey] = c.defaultKey);
+    setUserKeys(defaults);
+  }, []);
+
+  // Compute keyMappings for KeyboardHandler (Physical -> MAME)
+  const keyMappings = useMemo(() => {
+    const map: KeyMapping = {};
+    Object.entries(userKeys).forEach(([mameKey, physicalKey]) => {
+      map[physicalKey] = mameKey;
+    });
+    return map;
+  }, [userKeys]);
+
+  // Load MAME when game starts
+  useEffect(() => {
+    if (!gameStarted) return;
+
     if (canvasRef.current) {
       window.Module = {
         canvas: canvasRef.current,
-        arguments: ['-verbose'],
+        arguments: [
+            'gng',
+            '-rompath', '/roms',
+            '-window',
+            '-verbose',
+            '-skip_gameinfo',
+            '-samplerate', '48000',
+            '-audio_latency', '1'
+        ],
         print: (text: string) => console.log(text),
         printErr: (text: string) => console.error(text),
         onRuntimeInitialized: () => {
@@ -81,7 +127,29 @@ const App = () => {
         window.onerror = originalOnError;
       };
     }
-  }, []);
+  }, [gameStarted]);
+
+  // Handle Key Binding
+  useEffect(() => {
+    if (!listeningFor) return;
+
+    const handler = (e: KeyboardEvent) => {
+      e.preventDefault();
+      // Only accept 'valid' keys (not just modifiers unless intentional, but let's allow everything for now)
+      setUserKeys(prev => ({ ...prev, [listeningFor]: e.key }));
+      setListeningFor(null);
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [listeningFor]);
+
+  const handleStartGame = () => {
+    if (startFullscreen && document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(e => console.error("Fullscreen failed", e));
+    }
+    setGameStarted(true);
+  };
 
   const handleSoftReset = () => {
     if (window.JSMAME && window.JSMAME.soft_reset) {
@@ -102,9 +170,9 @@ const App = () => {
 
   return (
     <div className="app">
-      <KeyboardHandler enabled={isReady} />
+      <KeyboardHandler enabled={isReady} keyMappings={keyMappings} />
       <header className="app-header">
-        <h1>MAME Web</h1>
+        <h1>MAME Web - Ghosts 'n Goblins</h1>
         <div className="controls">
           {isReady && (
             <>
@@ -116,27 +184,47 @@ const App = () => {
         </div>
       </header>
       <main className="app-main">
-        {isLoading && <div className="loading">Loading MAME...</div>}
-        {error && <div className="error">{error}</div>}
-        <div className="canvas-container">
-          <canvas ref={canvasRef} id="canvas" />
-        </div>
-        {isReady && (
-          <div className="keyboard-info" role="complementary" aria-label="Game Controls">
-            <h3>Controls (Ghosts n Goblins):</h3>
-            <dl>
-              <dt>Movement:</dt>
-              <dd>W/A/S/D or Arrow Keys</dd>
-              <dt>Attack:</dt>
-              <dd>K</dd>
-              <dt>Jump:</dt>
-              <dd>L</dd>
-              <dt>Start:</dt>
-              <dd>5</dd>
-              <dt>Coin:</dt>
-              <dd>1</dd>
-            </dl>
-          </div>
+        {!gameStarted ? (
+            <div className="config-container">
+                <h2>Game Configuration</h2>
+                <div className="key-config">
+                    <h3>Controls</h3>
+                    <div className="key-grid">
+                        {CONTROLS.map(control => (
+                            <div key={control.mameKey} className="key-row">
+                                <span className="key-label">{control.label}:</span>
+                                <button
+                                    className={`key-button ${listeningFor === control.mameKey ? 'listening' : ''}`}
+                                    onClick={() => setListeningFor(control.mameKey)}
+                                >
+                                    {listeningFor === control.mameKey ? 'Press any key...' : userKeys[control.mameKey] || '...'}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="start-options">
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={startFullscreen}
+                            onChange={e => setStartFullscreen(e.target.checked)}
+                        />
+                        Start in Fullscreen
+                    </label>
+                </div>
+
+                <button className="start-button" onClick={handleStartGame}>Start Game</button>
+            </div>
+        ) : (
+            <>
+                {isLoading && <div className="loading">Loading MAME...</div>}
+                {error && <div className="error">{error}</div>}
+                <div className="canvas-container">
+                  <canvas ref={canvasRef} id="canvas" onContextMenu={e => e.preventDefault()} />
+                </div>
+            </>
         )}
       </main>
       <footer className="app-footer">
@@ -147,4 +235,3 @@ const App = () => {
 };
 
 export default App;
-
