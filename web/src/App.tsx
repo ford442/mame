@@ -76,10 +76,26 @@ const App = () => {
 
     const resizeCanvas = () => {
       const canvas = canvasRef.current;
-      if (canvas) {
-        // Dynamically set canvas buffer size to match display size
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
+      if (canvas && canvas.parentElement) {
+        const parent = canvas.parentElement;
+        const maxWidth = parent.clientWidth;
+        const maxHeight = parent.clientHeight;
+
+        let targetWidth = maxWidth;
+        let targetHeight = targetWidth * 3 / 4;
+
+        if (targetHeight > maxHeight) {
+          targetHeight = maxHeight;
+          targetWidth = targetHeight * 4 / 3;
+        }
+
+        // Apply calculated dimensions to style (for display)
+        canvas.style.width = `${targetWidth}px`;
+        canvas.style.height = `${targetHeight}px`;
+
+        // Match buffer size to display size (1:1 pixel mapping)
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
       }
     };
 
@@ -88,10 +104,15 @@ const App = () => {
 
     // Watch for size changes
     const resizeObserver = new ResizeObserver(() => {
-        resizeCanvas();
+        // Wrap in requestAnimationFrame to avoid "ResizeObserver loop limit exceeded" error
+        requestAnimationFrame(() => {
+            resizeCanvas();
+        });
     });
 
-    resizeObserver.observe(canvasRef.current);
+    if (canvasRef.current && canvasRef.current.parentElement) {
+        resizeObserver.observe(canvasRef.current.parentElement);
+    }
 
     return () => {
       resizeObserver.disconnect();
