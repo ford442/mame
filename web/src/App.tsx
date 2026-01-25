@@ -70,6 +70,34 @@ const App = () => {
     return map;
   }, [userKeys]);
 
+  // Resize handler for canvas
+  useEffect(() => {
+    if (!gameStarted || !canvasRef.current) return;
+
+    const resizeCanvas = () => {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        // Dynamically set canvas buffer size to match display size
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+      }
+    };
+
+    // Initial resize
+    resizeCanvas();
+
+    // Watch for size changes
+    const resizeObserver = new ResizeObserver(() => {
+        resizeCanvas();
+    });
+
+    resizeObserver.observe(canvasRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [gameStarted]);
+
   // Load MAME when game starts
   useEffect(() => {
     if (!gameStarted) return;
