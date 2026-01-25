@@ -72,28 +72,46 @@ const App = () => {
 
   // Resize handler for canvas
   useEffect(() => {
-    if (!gameStarted || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    if (!gameStarted || !canvas || !canvas.parentElement) return;
+
+    const container = canvas.parentElement;
 
     const resizeCanvas = () => {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        // Dynamically set canvas buffer size to match display size
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
+      if (canvas && container) {
+        const maxWidth = container.clientWidth;
+        const maxHeight = container.clientHeight;
+        const targetRatio = 4 / 3;
+
+        let width = maxWidth;
+        let height = width / targetRatio;
+
+        if (height > maxHeight) {
+          height = maxHeight;
+          width = height * targetRatio;
+        }
+
+        // Set display size
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+
+        // Set buffer size
+        canvas.width = width;
+        canvas.height = height;
       }
     };
 
     // Initial resize
     resizeCanvas();
 
-    // Watch for size changes
+    // Watch for size changes on the CONTAINER
     const resizeObserver = new ResizeObserver(() => {
         window.requestAnimationFrame(() => {
             resizeCanvas();
         });
     });
 
-    resizeObserver.observe(canvasRef.current);
+    resizeObserver.observe(container);
 
     return () => {
       resizeObserver.disconnect();
