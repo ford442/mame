@@ -4,39 +4,42 @@
 
     Xetec C-5181 serial printer interface
 
-	This interface allows printing to the IBM 5181 thermal printer and other Epson-style
-	1200-baud serial printers.
+    This interface allows printing to the IBM 5181 thermal printer and other Epson-style
+    1200-baud serial printers.
 
-	Currently this device prints to a generic RS232 printer instead.
-	The RS232 port must be set to 1200 baud before printing.
+    Currently this device prints to a generic RS232 printer instead.
+    The RS232 port must be set to 1200 baud before printing.
 
-	The original printer and interface were also rebranded as the Protecto "Big Blue" printer.
-	Manual with interface-specific info and control characters:
-	http://commodore.bombjack.org/commodore/printers/Protecto_Big_Blue_Printer_Interface_by_Supra.pdf
+    The original printer and interface were also rebranded as the Protecto "Big Blue" printer.
+    Manual with interface-specific info and control characters:
+    http://commodore.bombjack.org/commodore/printers/Protecto_Big_Blue_Printer_Interface_by_Supra.pdf
 
-	There are some undocumented secondary addresses that behave similarly to other Xetec interfaces:
-	- 1, 5, 8: same as 0, 4, 7 but without automatic line feed
-	- 15: command channel, responds to any of the following characters:
-		- '?': print hex dump of RAM
-		- 'I': print interface info
-		- 'Z': print Xetec logo image
-		- 'U': unlock secondary address
-		- '6': print 6 lines per inch (same as ESC 2)
-		- '8': print 8 or 9 lines per inch (same as ESC 1, result depends on printer)
-		- 'G': print graphic characters normally
-		- 'A': print graphic characters' ASCII values
-		- 'K': print graphic characters' keystrokes
-		- 'M': print control codes as mnemonics
-		- 'V': print control codes as symbols
-		- 'X': print dot graphics data normally
-		- 'N': print 7-bit dot graphics only
+    There are some undocumented secondary addresses that behave similarly to other Xetec interfaces:
+    - 1, 5, 8: same as 0, 4, 7 but without automatic line feed
+    - 15: command channel, responds to any of the following characters:
+        - '?': print hex dump of RAM
+        - 'I': print interface info
+        - 'Z': print Xetec logo image
+        - 'U': unlock secondary address
+        - '6': print 6 lines per inch (same as ESC 2)
+        - '8': print 8 or 9 lines per inch (same as ESC 1, result depends on printer)
+        - 'G': print graphic characters normally
+        - 'A': print graphic characters' ASCII values
+        - 'K': print graphic characters' keystrokes
+        - 'M': print control codes as mnemonics
+        - 'V': print control codes as symbols
+        - 'X': print dot graphics data normally
+        - 'N': print 7-bit dot graphics only
 
 **********************************************************************/
 
 #include "emu.h"
 #include "c5181.h"
 
+#include "bus/rs232/null_modem.h"
 #include "bus/rs232/printer.h"
+#include "bus/rs232/pty.h"
+
 
 DEFINE_DEVICE_TYPE(XETEC_C5181, xetec_c5181_device, "xetec_c5181", "Xetec C-5181 Serial Printer Interface")
 
@@ -64,10 +67,21 @@ void xetec_c5181_device::map(address_map &map)
 	map(0x0000, 0x1fff).rom();
 }
 
+static DEVICE_INPUT_DEFAULTS_START(null_modem)
+	DEVICE_INPUT_DEFAULTS("RS232_TXBAUD",    0x00ff, RS232_BAUD_1200)
+	DEVICE_INPUT_DEFAULTS("RS232_RXBAUD",    0x00ff, RS232_BAUD_1200)
+DEVICE_INPUT_DEFAULTS_END
+
+static DEVICE_INPUT_DEFAULTS_START(printer)
+	DEVICE_INPUT_DEFAULTS("RS232_RXBAUD",    0x00ff, RS232_BAUD_1200)
+DEVICE_INPUT_DEFAULTS_END
+
 static void serial_devices(device_slot_interface &device)
 {
 	// TODO: replace this with the actual IBM 5181 printer
-	device.option_add("printer", SERIAL_PRINTER);
+	device.option_add("null_modem",  NULL_MODEM);
+	device.option_add("printer",     SERIAL_PRINTER);
+	device.option_add("pty",         PSEUDO_TERMINAL);
 }
 
 void xetec_c5181_device::device_add_mconfig(machine_config &config)
@@ -78,6 +92,9 @@ void xetec_c5181_device::device_add_mconfig(machine_config &config)
 	m_cpu->porta_w().set(FUNC(xetec_c5181_device::pa_w));
 
 	RS232_PORT(config, m_rs232, serial_devices, "printer");
+	m_rs232->set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(null_modem));
+	m_rs232->set_option_device_input_defaults("printer",    DEVICE_INPUT_DEFAULTS_NAME(printer));
+	m_rs232->set_option_device_input_defaults("pty",        DEVICE_INPUT_DEFAULTS_NAME(null_modem));
 	m_rs232->cts_handler().set_inputline(m_cpu, M6805_IRQ_LINE).invert();
 }
 

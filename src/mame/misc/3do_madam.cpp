@@ -36,6 +36,7 @@ madam_device::madam_device(const machine_config &mconfig, const char *tag, devic
 	, m_dma8_read_cb(*this, 0)
 	, m_dma32_read_cb(*this, 0)
 	, m_dma32_write_cb(*this)
+	, m_playerbus_read_cb(*this, 0)
 	, m_irq_dply_cb(*this)
 {
 }
@@ -219,6 +220,7 @@ void madam_device::map(address_map &map)
 			COMBINE_DATA(&m_regctl3);
 		})
 	);
+	// TODO: these are in 16.16 format
 	map(0x0140, 0x0143).lrw32(
 		NAME([this] () { return m_xyposh; }),
 		NAME([this] (offs_t offset, u32 data, u32 mem_mask) {
@@ -247,6 +249,7 @@ void madam_device::map(address_map &map)
 			COMBINE_DATA(&m_linedxyl);
 		})
 	);
+	// TODO: these are in 12.20 format
 	map(0x0150, 0x0153).lrw32(
 		NAME([this] () { return m_dxyh; }),
 		NAME([this] (offs_t offset, u32 data, u32 mem_mask) {
@@ -399,7 +402,14 @@ void madam_device::mctl_w(offs_t offset, u32 data, u32 mem_mask)
 	if (ACCESSING_BITS_8_15)
 	{
 		if (!BIT(m_mctl, 15) && BIT(data, 15))
+		{
 			m_dma_playerbus_timer->adjust(attotime::from_ticks(2, this->clock()));
+			// HACK: Fake inputs here
+			// Madam can access Player bus from DMA only, and the port(s) are daisy chained thru
+			// bidirectional serial i/f (which also handle headphone jack and ROM device transfers)
+			// Smells a lot like an internal MCU doing the job ...
+			m_dma32_write_cb(m_dma[23][2] + 0x4, m_playerbus_read_cb(0));
+		}
 		if (BIT(m_mctl, 15) && !BIT(data, 15))
 		{
 			LOG("mctl: Player bus DMA abort?\n");
@@ -429,7 +439,6 @@ TIMER_CALLBACK_MEMBER(madam_device::dma_playerbus_cb)
 		return;
 	}
 
-	// TODO: from RAM should likely first obtain the serial data from the controller(s)
 	// TODO: should cause a privbits exception if mask outside bounds
 	u32 src = m_dma[23][2];
 	u32 dst = m_dma[23][0];
@@ -665,6 +674,7 @@ TIMER_CALLBACK_MEMBER(madam_device::cel_tick_cb)
 			if (m_cel.skip && m_cel.last)
 			{
 				LOGCEL("Skip + Last, done\n");
+				m_statbits |= (1 << 6);
 				cel_stop_w(0, 0, 0xffffffff);
 				return;
 			}
@@ -734,6 +744,7 @@ TIMER_CALLBACK_MEMBER(madam_device::cel_tick_cb)
 			if (!npabs || !spabs || !ppabs)
 			{
 				popmessage("CEL relative address use at %08x %d|%d|%d", m_cel.address, npabs, spabs, ppabs);
+				m_statbits |= (1 << 6);
 				cel_stop_w(0, 0, 0xffffffff);
 				return;
 			}
@@ -744,6 +755,7 @@ TIMER_CALLBACK_MEMBER(madam_device::cel_tick_cb)
 			if (!ldsize || !ldprs || !yoxy || !ldpixc)
 			{
 				popmessage("CEL using existing values at %08x %d|%d|%d|%d", m_cel.address, ldsize, ldprs, yoxy, ldpixc);
+				m_statbits |= (1 << 6);
 				cel_stop_w(0, 0, 0xffffffff);
 				return;
 			}
@@ -1043,10 +1055,10 @@ u32 madam_device::cel_decompress()
 		(bpp == 4 && uncoded) ||
 		(bpp == 5))
 	{
-		popmessage("3do_madam.cpp: unsupported Packed CEL %d %08x", bpp, source_ptr);
-		//m_statbits |= (1 << 6);
-		//cel_stop_w(0, 0, 0xffffffff);
-		return 1;
+		popmessage("3do_madam.cpp: unsupported Packed CEL %d %d %08x", bpp, uncoded, source_ptr);
+		m_statbits |= (1 << 6);
+		cel_stop_w(0, 0, 0xffffffff);
+		return 0;
 	}
 
 	u16 tlhpcnt = 1;
@@ -1089,8 +1101,10 @@ u32 madam_device::cel_decompress()
 			switch (packet_type)
 			{
 				// PACK_TRANSPARENT
-				// TODO: untested
-				// Does it write a 0 or it actually 0-fill from PLUT anyway?
+				// TODO: doesn't really work properly, particularly when bgnd is 1
+				// - 3do_fz10 CD overlays uses plenty of these, which currently fills solid black
+				// We could cheat and pull bit 15 high, but then we have to deal accordingly
+				// when writing to framebuffer (that uses it as cornerweight or CLUT selector) ...
 				case 2:
 					for (src = 0; src < num_bytes; src++)
 						m_cel.buffer[yline * pitch + ((src + xpos) % pitch)] = 0;

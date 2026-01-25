@@ -2,17 +2,13 @@
 // copyright-holders:Zsolt Vasvari
 /*******************************************************************************
 
-    Allied Leisure Clay Shoot hardware
+Allied Leisure Clay Shoot hardware
+driver by Zsolt Vasvari
 
-    driver by Zsolt Vasvari
-
-    Games supported:
-        * Clay Shoot
-
-    Known issues:
-        * missing SN76477 sound effects
-        * cocktail mode, dipswitch or alternate romset?
-          (cocktail set has a color overlay, upright set has a backdrop)
+TODO:
+- missing SN76477 sound effects
+- cocktail mode, dipswitch or alternate romset? (cocktail set has a color overlay,
+  upright set has a backdrop)
 
 *******************************************************************************/
 
@@ -58,7 +54,11 @@ private:
 	required_ioport_array<4> m_in;
 	required_ioport_array<2> m_an;
 
-	uint32_t screen_update_clayshoo(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	emu_timer *m_analog_timer[2];
+	uint8_t m_input_port_select = 0;
+	uint8_t m_analog_port_val = 0xff;
+
+	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	void input_port_select_w(uint8_t data);
 	uint8_t input_port_r();
@@ -70,10 +70,6 @@ private:
 
 	void main_io_map(address_map &map) ATTR_COLD;
 	void main_map(address_map &map) ATTR_COLD;
-
-	emu_timer *m_analog_timer[2];
-	uint8_t m_input_port_select = 0;
-	uint8_t m_analog_port_val = 0xff;
 };
 
 
@@ -100,7 +96,7 @@ void clayshoo_state::machine_start()
  *
  *************************************/
 
-uint32_t clayshoo_state::screen_update_clayshoo(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
+uint32_t clayshoo_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	for (offs_t offs = 0; offs < m_videoram.bytes(); offs++)
 	{
@@ -134,7 +130,6 @@ void clayshoo_state::input_port_select_w(uint8_t data)
 	m_input_port_select = data;
 }
 
-
 uint8_t clayshoo_state::input_port_r()
 {
 	uint8_t data = 0xff;
@@ -159,7 +154,6 @@ TIMER_CALLBACK_MEMBER(clayshoo_state::reset_analog_bit)
 	m_analog_port_val &= ~param;
 }
 
-
 void clayshoo_state::analog_reset_w(uint8_t data)
 {
 	/* reset the analog value, and start the two timers that will fire
@@ -177,12 +171,10 @@ void clayshoo_state::analog_reset_w(uint8_t data)
 	}
 }
 
-
 uint8_t clayshoo_state::analog_r()
 {
 	return m_analog_port_val;
 }
-
 
 void clayshoo_state::create_analog_timers()
 {
@@ -194,7 +186,7 @@ void clayshoo_state::create_analog_timers()
 
 /*************************************
  *
- *  Memory handlers
+ *  Address maps
  *
  *************************************/
 
@@ -208,14 +200,6 @@ void clayshoo_state::main_map(address_map &map)
 	map(0xc800, 0xc800).rw(FUNC(clayshoo_state::analog_r), FUNC(clayshoo_state::analog_reset_w));
 }
 
-
-
-/*************************************
- *
- *  Port handlers
- *
- *************************************/
-
 void clayshoo_state::main_io_map(address_map &map)
 {
 	map.global_mask(0xff);
@@ -223,8 +207,8 @@ void clayshoo_state::main_io_map(address_map &map)
 	map(0x20, 0x23).rw(m_ppi[0], FUNC(i8255_device::read), FUNC(i8255_device::write));
 	map(0x30, 0x33).rw(m_ppi[1], FUNC(i8255_device::read), FUNC(i8255_device::write));
 	map(0x40, 0x43).rw(m_pit, FUNC(pit8253_device::read), FUNC(pit8253_device::write));
-//  map(0x50, 0x50).noprw(); // ?
-//  map(0x60, 0x60).noprw(); // ?
+	map(0x50, 0x50).unmapw(); // ?
+	map(0x60, 0x60).unmapw(); // ?
 }
 
 
@@ -298,7 +282,7 @@ INPUT_PORTS_END
 
 /*************************************
  *
- *  Machine driver
+ *  Machine config
  *
  *************************************/
 
@@ -318,7 +302,7 @@ void clayshoo_state::clayshoo(machine_config &config)
 	screen.set_visarea(0, 255, 64, 255);
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
-	screen.set_screen_update(FUNC(clayshoo_state::screen_update_clayshoo));
+	screen.set_screen_update(FUNC(clayshoo_state::screen_update));
 
 	I8255(config, m_ppi[0]);
 
