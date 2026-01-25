@@ -12,7 +12,7 @@ USERNAME = "ford442"
 
 LOCAL_DIRECTORY = "dist"
 
-REMOTE_DIRECTORY = "test.1ink.us/mame-gng"
+REMOTE_DIRECTORY = "test.1ink.us/vite-gng"
 
 # Create the dist directory if it doesn't exist
 os.makedirs('./dist', exist_ok=True)
