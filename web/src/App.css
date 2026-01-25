@@ -64,9 +64,12 @@
 #canvas {
   border: 2px solid #61dafb;
   border-radius: 4px;
+  width: 100% !important;
+  height: auto !important;
   max-width: 100%;
-  height: auto;
+  display: block;
   background-color: #000;
+  image-rendering: pixelated;
 }
 
 .loading,
