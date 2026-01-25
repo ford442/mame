@@ -10,7 +10,7 @@ HOSTNAME = "1ink.us"
 PORT = 22  # Default SFTP/SSH port
 USERNAME = "ford442"
 
-LOCAL_DIRECTORY = "dist"
+LOCAL_DIRECTORY = "web/dist"
 
 REMOTE_DIRECTORY = "test.1ink.us/vite-gng"
 
