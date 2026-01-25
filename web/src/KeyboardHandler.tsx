@@ -27,7 +27,7 @@ const SDL_SCANCODES: { [key: string]: number } = {
   Alt: 226,     // Left Alt
 };
 
-// Helper function to get SDL scancode from browser key
+// Helper function to get SDL scancode from a target MAME key name
 const getScancode = (key: string): number | null => {
   // Normalize alphanumeric keys to uppercase for SDL_SCANCODES lookup
   // Other keys (ArrowUp, Enter, etc.) remain as-is
@@ -44,33 +44,45 @@ const shouldPreventDefault = (key: string): boolean => {
   return GAME_KEYS.includes(key.toLowerCase());
 };
 
-interface KeyboardHandlerProps {
-  enabled: boolean;
+export interface KeyMapping {
+  [physicalKey: string]: string; // Maps "Space" (User pressed) -> "L" (MAME receives)
 }
 
-const KeyboardHandler = ({ enabled }: KeyboardHandlerProps) => {
+interface KeyboardHandlerProps {
+  enabled: boolean;
+  keyMappings?: KeyMapping;
+}
+
+const KeyboardHandler = ({ enabled, keyMappings = {} }: KeyboardHandlerProps) => {
   useEffect(() => {
     if (!enabled) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Prevent default browser behavior for game keys
-      if (shouldPreventDefault(event.key)) {
+      // Prevent default browser behavior if the key is mapped or is a default game key
+      const isMapped = keyMappings.hasOwnProperty(event.key);
+      if (isMapped || shouldPreventDefault(event.key)) {
         event.preventDefault();
       }
 
-      const scancode = getScancode(event.key);
+      // Determine which MAME key to simulate
+      // If mapped, use the target key. Otherwise, pass the physical key through.
+      const targetKey = keyMappings[event.key] || event.key;
+
+      const scancode = getScancode(targetKey);
       if (scancode !== null && window.JSMAME?.sdl_sendkeyboardkey) {
         window.JSMAME.sdl_sendkeyboardkey(0x80, scancode); // 0x80 = key pressed
       }
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
-      // Prevent default browser behavior for game keys (consistency with keydown)
-      if (shouldPreventDefault(event.key)) {
+      const isMapped = keyMappings.hasOwnProperty(event.key);
+      if (isMapped || shouldPreventDefault(event.key)) {
         event.preventDefault();
       }
 
-      const scancode = getScancode(event.key);
+      const targetKey = keyMappings[event.key] || event.key;
+
+      const scancode = getScancode(targetKey);
       if (scancode !== null && window.JSMAME?.sdl_sendkeyboardkey) {
         window.JSMAME.sdl_sendkeyboardkey(0x00, scancode); // 0x00 = key released
       }
@@ -85,7 +97,7 @@ const KeyboardHandler = ({ enabled }: KeyboardHandlerProps) => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [enabled]);
+  }, [enabled, keyMappings]);
 
   return null; // This component doesn't render anything
 };
