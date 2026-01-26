@@ -81,23 +81,36 @@ const App = () => {
       if (canvas && container) {
         const maxWidth = container.clientWidth;
         const maxHeight = container.clientHeight;
+
+        // Account for 2px border on each side (total 4px)
+        // We calculate the content box size to ensure strict 4:3 ratio
+        const borderX = 4;
+        const borderY = 4;
+
+        const limitW = maxWidth - borderX;
+        const limitH = maxHeight - borderY;
+
         const targetRatio = 4 / 3;
 
-        let width = maxWidth;
-        let height = width / targetRatio;
+        let contentWidth = limitW;
+        let contentHeight = contentWidth / targetRatio;
 
-        if (height > maxHeight) {
-          height = maxHeight;
-          width = height * targetRatio;
+        if (contentHeight > limitH) {
+          contentHeight = limitH;
+          contentWidth = contentHeight * targetRatio;
         }
 
-        // Set display size
-        canvas.style.width = `${width}px`;
-        canvas.style.height = `${height}px`;
+        // Snap to integers to avoid sub-pixel blurring
+        contentWidth = Math.floor(contentWidth);
+        contentHeight = Math.floor(contentHeight);
 
-        // Set buffer size
-        canvas.width = width;
-        canvas.height = height;
+        // Set display size (including border because of box-sizing: border-box)
+        canvas.style.width = `${contentWidth + borderX}px`;
+        canvas.style.height = `${contentHeight + borderY}px`;
+
+        // Set buffer size (content only)
+        canvas.width = contentWidth;
+        canvas.height = contentHeight;
       }
     };
 
