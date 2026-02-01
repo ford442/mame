@@ -83,39 +83,27 @@ const App = () => {
     const container = canvas.parentElement;
 
     const resizeCanvas = () => {
-      if (canvas && container) {
-        const maxWidth = container.clientWidth;
-        const maxHeight = container.clientHeight;
+      const canvas = canvasRef.current;
+      if (canvas && canvas.parentElement) {
+        const parent = canvas.parentElement;
+        const maxWidth = parent.clientWidth;
+        const maxHeight = parent.clientHeight;
 
-        // Account for 2px border on each side (total 4px)
-        // We calculate the content box size to ensure strict 4:3 ratio
-        const borderX = 4;
-        const borderY = 4;
+        let targetWidth = maxWidth;
+        let targetHeight = targetWidth * 3 / 4;
 
-        const limitW = maxWidth - borderX;
-        const limitH = maxHeight - borderY;
-
-        const targetRatio = 4 / 3;
-
-        let contentWidth = limitW;
-        let contentHeight = contentWidth / targetRatio;
-
-        if (contentHeight > limitH) {
-          contentHeight = limitH;
-          contentWidth = contentHeight * targetRatio;
+        if (targetHeight > maxHeight) {
+          targetHeight = maxHeight;
+          targetWidth = targetHeight * 4 / 3;
         }
 
-        // Snap to integers to avoid sub-pixel blurring
-        contentWidth = Math.floor(contentWidth);
-        contentHeight = Math.floor(contentHeight);
+        // Apply calculated dimensions to style (for display)
+        canvas.style.width = `${targetWidth}px`;
+        canvas.style.height = `${targetHeight}px`;
 
-        // Set display size (including border because of box-sizing: border-box)
-        canvas.style.width = `${contentWidth + borderX}px`;
-        canvas.style.height = `${contentHeight + borderY}px`;
-
-        // Set buffer size (content only)
-        canvas.width = contentWidth;
-        canvas.height = contentHeight;
+        // Match buffer size to display size (1:1 pixel mapping)
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
       }
     };
 
@@ -124,12 +112,15 @@ const App = () => {
 
     // Watch for size changes on the CONTAINER
     const resizeObserver = new ResizeObserver(() => {
-        window.requestAnimationFrame(() => {
+        // Wrap in requestAnimationFrame to avoid "ResizeObserver loop limit exceeded" error
+        requestAnimationFrame(() => {
             resizeCanvas();
         });
     });
 
-    resizeObserver.observe(container);
+    if (canvasRef.current && canvasRef.current.parentElement) {
+        resizeObserver.observe(canvasRef.current.parentElement);
+    }
 
     return () => {
       resizeObserver.disconnect();
