@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import './App.css';
 import KeyboardHandler, { KeyMapping } from './KeyboardHandler';
-import { joy } from '../1joy/index';
+import useGamepadInput from './hooks/useGamepadInput';
+import GamepadVisualizer from './components/GamepadVisualizer';
 
 interface MAMEModuleType {
   canvas: HTMLCanvasElement | null;
@@ -53,6 +54,10 @@ const App = () => {
   const [userKeys, setUserKeys] = useState<{ [mameKey: string]: string }>({});
   const [listeningFor, setListeningFor] = useState<string | null>(null);
   const [startFullscreen, setStartFullscreen] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
+
+  // Initialize gamepad support
+  useGamepadInput(true);
 
   // Initialize default keys
   useEffect(() => {
@@ -72,7 +77,10 @@ const App = () => {
 
   // Resize handler for canvas
   useEffect(() => {
-    if (!gameStarted || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    if (!gameStarted || !canvas || !canvas.parentElement) return;
+
+    const container = canvas.parentElement;
 
     const resizeCanvas = () => {
       const canvas = canvasRef.current;
@@ -102,7 +110,7 @@ const App = () => {
     // Initial resize
     resizeCanvas();
 
-    // Watch for size changes
+    // Watch for size changes on the CONTAINER
     const resizeObserver = new ResizeObserver(() => {
         // Wrap in requestAnimationFrame to avoid "ResizeObserver loop limit exceeded" error
         requestAnimationFrame(() => {
@@ -212,22 +220,25 @@ const App = () => {
     }
   };
 
-  const handle1joy = () => {
-    joy();
-    console.log('1joy button clicked');
-  };
-
   return (
     <div className="app">
       <KeyboardHandler enabled={isReady} keyMappings={keyMappings} />
+      {showDebug && <GamepadVisualizer />}
       <header className="app-header">
-        <h1>MAME Web - Ghosts 'n Goblins</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h1>MAME Web - Ghosts 'n Goblins</h1>
+            <button
+                onClick={() => setShowDebug(!showDebug)}
+                style={{ padding: '0.5rem', fontSize: '0.9rem', backgroundColor: '#4b5563' }}
+            >
+                {showDebug ? 'Close Debugger' : 'Controller Setup'}
+            </button>
+        </div>
         <div className="controls">
           {isReady && (
             <>
               <button onClick={handleSoftReset}>Soft Reset</button>
               <button onClick={handleHardReset}>Hard Reset</button>
-              <button onClick={handle1joy}>1joy</button>
             </>
           )}
         </div>
