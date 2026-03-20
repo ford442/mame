@@ -226,7 +226,7 @@ const App = () => {
       {showDebug && <GamepadVisualizer />}
       <header className="app-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h1>MAME Web - Ghosts 'n Goblins</h1>
+            <h1>MAME Web - Snow Bros - Nick & Tom</h1>
             <button
                 onClick={() => setShowDebug(!showDebug)}
                 style={{ padding: '0.5rem', fontSize: '0.9rem', backgroundColor: '#4b5563' }}
