@@ -23,6 +23,26 @@
         }
       }
     },
+    "build_snowbros": {
+      "executor": "webpack",
+      "options": {
+        "outputPath": "web/dist",
+        "index": "web/src/index.html",
+        "main": "web/src/index_snowbros.tsx",
+        "tsConfig": "web/tsconfig.json",
+        "assets": ["web/src/assets"]
+      },
+      "configurations": {
+        "production": {
+          "optimization": true,
+          "sourceMap": false
+        },
+        "development": {
+          "optimization": false,
+          "sourceMap": true
+        }
+      }
+    },
     "serve": {
       "executor": "webpack-dev-server",
       "options": {
