@@ -23,7 +23,7 @@
         }
       }
     },
-    "build_snowbros": {
+    "build-snowbros": {
       "executor": "webpack",
       "options": {
         "outputPath": "web/dist",
