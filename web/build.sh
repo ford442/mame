@@ -8,7 +8,7 @@ WORKSPACE="/content/build_space"
 MAME_DIR="${WORKSPACE}/mame"
 EMSDK_ENV="${WORKSPACE}/emsdk/emsdk_env.sh"
 ROM_PATH="${MAME_DIR}/roms/gng.zip"
-CORES=55  # Adjust based on available CPU cores
+CORES=2  # Adjusted for lower memory systems. Increase if you have >16GB RAM and more CPU cores
 
 # Common flags shared between both steps
 COMMON_FLAGS=(
