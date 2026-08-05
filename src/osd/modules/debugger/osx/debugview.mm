@@ -2,7 +2,7 @@
 // copyright-holders:Vas Crabb
 //============================================================
 //
-//  debugview.m - MacOS X Cocoa debug window handling
+//  debugview.mm - macOS Cocoa debug window handling
 //
 //============================================================
 
@@ -12,6 +12,7 @@
 #include "debugger.h"
 #include "debug/debugcon.h"
 #include "debug/debugcpu.h"
+#include "debug/dvdisasm.h"
 
 #include "modules/lib/osdobj_common.h"
 
@@ -199,6 +200,13 @@ static void debugwin_view_update(debug_view &view, void *osdprivate)
 
 
 - (void)recomputeVisible {
+	// If the core view has moved its origin and an update hasn't scrolled us to
+	// match yet, pushing our stale scroll position back into it would cancel
+	// out the move (e.g. the disassembly view re-centering on the PC after a
+	// jump or exception/trap).
+	if (view->visible_position().y != originTop)
+		return;
+
 	// this gets all the lines that are at least partially visible
 	debug_view_xy origin(0, 0), size(totalWidth, totalHeight);
 	[self convertBounds:[self visibleRect] toFirstAffectedLine:&origin.y count:&size.y];
@@ -262,7 +270,8 @@ static void debugwin_view_update(debug_view &view, void *osdprivate)
 	type = t;
 	machine = &m;
 	view = machine->debug_view().alloc_view((debug_view_type)type, debugwin_view_update, self);
-	if (view == nil) {
+	if (view == nil)
+	{
 		[self release];
 		return nil;
 	}
@@ -478,7 +487,8 @@ static void debugwin_view_update(debug_view &view, void *osdprivate)
 
 
 - (void)viewFrameDidChange:(NSNotification *)notification {
-	if (ignoreNextFrameUpdate) {
+	if (ignoreNextFrameUpdate)
+	{
 		ignoreNextFrameUpdate = NO;
 		return;
 	}
@@ -559,10 +569,14 @@ static void debugwin_view_update(debug_view &view, void *osdprivate)
 	util::xml::data_node const *const scroll = node->get_child(osd::debugger::NODE_WINDOW_SCROLL);
 	if (scroll)
 	{
-		NSRect visible = [self visibleRect];
-		visible.origin.x = scroll->get_attribute_float(osd::debugger::ATTR_SCROLL_ORIGIN_X, visible.origin.x);
-		visible.origin.y = scroll->get_attribute_float(osd::debugger::ATTR_SCROLL_ORIGIN_Y, visible.origin.y);
-		[self scrollRectToVisible:visible];
+		// If this is a disassembly view and it's tracking curpc, don't apply the saved scroll position.
+		if ((type != DVT_DISASSEMBLY) || strcmp(downcast<debug_view_disasm *>(view)->expression(), "curpc"))
+		{
+			NSRect visible = [self visibleRect];
+			visible.origin.x = scroll->get_attribute_float(osd::debugger::ATTR_SCROLL_ORIGIN_X, visible.origin.x);
+			visible.origin.y = scroll->get_attribute_float(osd::debugger::ATTR_SCROLL_ORIGIN_Y, visible.origin.y);
+			[self scrollRectToVisible:visible];
+		}
 	}
 }
 
@@ -912,9 +926,11 @@ static void debugwin_view_update(debug_view &view, void *osdprivate)
 		string = [string string];
 	for (len = [string length], found = NSMakeRange(0, 0);
 		 found.location < len;
-		 found.location += found.length) {
+		 found.location += found.length)
+	{
 		found = [string rangeOfComposedCharacterSequenceAtIndex:found.location];
-		if (found.length == 1) {
+		if (found.length == 1)
+		{
 			unichar ch = [string characterAtIndex:found.location];
 			if ((ch >= 32) && (ch < 127))
 				[self typeCharacterAndScrollToCursor:ch];

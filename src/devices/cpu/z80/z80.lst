@@ -4,7 +4,7 @@
 # macros
 ##########################################################
 macro   nomreq_addr   %addr
-	if (nomemrq_en)
+	if (nomreq_en)
 		m_nomreq_cb(%addr, 0x00, 0xff);
 	+ 1
 
@@ -18,26 +18,26 @@ macro   out   %port
 	m_iorq_cycles !! m_io.write_interruptible(%port, TDAT8);
 
 macro   rm   %addr
-	m_memrq_cycles !! TDAT8 = data_read(%addr);
+	m_mreq_cycles !! TDAT8 = data_read(%addr);
 
 macro   rm_reg   %addr
 	@rm %addr
 	@nomreq_addr %addr
 
 macro   rm16   %addr
-	m_memrq_cycles !! TDAT_L = data_read(%addr);
-	m_memrq_cycles !! TDAT_H = data_read(%addr+1);
+	m_mreq_cycles !! TDAT_L = data_read(%addr);
+	m_mreq_cycles !! TDAT_H = data_read(%addr+1);
 
 macro   wm   %addr
-	m_memrq_cycles !! data_write(%addr, TDAT8);
+	m_mreq_cycles !! data_write(%addr, TDAT8);
 
 macro   wm16   %addr
-	m_memrq_cycles !! data_write(%addr, TDAT_L);
-	m_memrq_cycles !! data_write(%addr+1, TDAT_H);
+	m_mreq_cycles !! data_write(%addr, TDAT_L);
+	m_mreq_cycles !! data_write(%addr+1, TDAT_H);
 
 macro   wm_sp %d
 	SP--;
-	m_memrq_cycles !! stack_write(SP, %d);
+	m_mreq_cycles !! stack_write(SP, %d);
 
 
 macro   wm16_sp %dd
@@ -46,6 +46,7 @@ macro   wm16_sp %dd
 
 macro   rop
 	m_m1_cycles-2 !! TDAT8 = opcode_read();
+	// TODO based on ULA contention analyzes refresh must send already incremented R.
 	if (refresh_en)
 		m_refresh_cb((I << 8) | (R2 & 0x80) | (R & 0x7f), 0x00, 0xff);
 	+ 2
@@ -62,13 +63,13 @@ macro   r800:rop
 	QT = YXF;
 
 macro   arg
-	m_memrq_cycles !! TDAT8 = arg_read();
+	m_mreq_cycles !! TDAT8 = arg_read();
 	PC++;
 
 macro   arg16 %dd
-	m_memrq_cycles !! TDAT_L = arg_read();
+	m_mreq_cycles !! TDAT_L = arg_read();
 	PC++;
-	m_memrq_cycles !! TDAT_H = arg_read();
+	m_mreq_cycles !! TDAT_H = arg_read();
 	PC++;
 	%dd = TDAT;
 
@@ -83,9 +84,9 @@ macro   eay
 	WZ = m_ea;
 
 macro   pop
-	m_memrq_cycles !! TDAT_L = stack_read(SP);
+	m_mreq_cycles !! TDAT_L = stack_read(SP);
 	SP++;
-	m_memrq_cycles !! TDAT_H = stack_read(SP);
+	m_mreq_cycles !! TDAT_H = stack_read(SP);
 	SP++;
 
 macro   push   %d16
@@ -183,12 +184,15 @@ macro   retn
 	m_iff1 = m_iff2;
 
 macro   z80n:retn
-	m_out_retn_seen_cb(0);
-	@pop
-	if (m_stackless) {
+	m_out_retn_seen_cb(1);
+	if (m_stackless_retn_en) {
+		m_stackless_retn_en = false;
+		SP += 2; //@pop
 		m_pc.b.l = m_in_nextreg_cb(0xc2);
 		m_pc.b.h = m_in_nextreg_cb(0xc3);
 	} else {
+		m_stackless_retn_en = false;
+		@pop
 		PC = TDAT;
 	}
 	LOGMASKED(LOG_INT, "RETN m_iff1:%d m_iff2:%d\n", m_iff1, m_iff2);
@@ -897,11 +901,35 @@ macro   take_nmi
 	WZ = PC;
 	set_service_attention<SA_NMI_PENDING, 0>();
 
+macro   z80n:take_nmi
+	leave_halt();
+	m_iff1 = 0;
+	m_r++;
+	+ 5
+	m_out_nextreg_cb(0xc2, m_pc.b.l);
+	m_out_nextreg_cb(0xc3, m_pc.b.h);
+	if (m_stackless) {
+		m_stackless_retn_en = true;
+		SP -= 2;
+	} else {
+		@wm16_sp PC
+		;
+	}
+	PC = 0x0066;
+	WZ = PC;
+	set_service_attention<SA_NMI_PENDING, 0>();
+
 macro   irqfetch
 {
 	// fetch the IRQ vector
 	device_z80daisy_interface *intf = daisy_get_irq_device();
-	m_tmp_irq_vector = (intf != nullptr) ? intf->z80daisy_irq_ack() : standard_irq_callback(0, m_pc.w);
+	if (intf != nullptr) {
+		m_tmp_irq_vector = intf->z80daisy_irq_ack();
+		if (debugger_enabled())
+			device_execute_interface::device().debug()->interrupt_hook(0, m_pc.w);
+	} else {
+		m_tmp_irq_vector = standard_irq_callback(0, m_pc.w);
+	}
 	LOGMASKED(LOG_INT, "single INT m_tmp_irq_vector $%02x\n", m_tmp_irq_vector);
 }
 
@@ -910,7 +938,13 @@ macro   t6a84:irqfetch
 	// fetch the IRQ vector
 	paged_irqfetch();
 	device_z80daisy_interface *intf = daisy_get_irq_device();
-	m_tmp_irq_vector = (intf != nullptr) ? intf->z80daisy_irq_ack() : standard_irq_callback(0, m_pc.w);
+	if (intf != nullptr) {
+		m_tmp_irq_vector = intf->z80daisy_irq_ack();
+		if (debugger_enabled())
+			device_execute_interface::device().debug()->interrupt_hook(0, m_pc.w);
+	} else {
+		m_tmp_irq_vector = standard_irq_callback(0, m_pc.w);
+	}
 	LOGMASKED(LOG_INT, "single INT m_tmp_irq_vector $%02x\n", m_tmp_irq_vector);
 }
 
@@ -988,18 +1022,6 @@ macro   check_interrupts
 		@take_interrupt
 	}
 
-macro   z80n:check_interrupts
-	if (get_service_attention<SA_NMI_PENDING>()) {
-		if (m_stackless) {
-			// on take_nmi
-			m_out_nextreg_cb(0xc2, m_pc.b.l);
-			m_out_nextreg_cb(0xc3, m_pc.b.h);
-		}
-		@take_nmi
-	} else if (m_irq_state != CLEAR_LINE && m_iff1 && !get_service_attention<SA_AFTER_EI>()) { // SA_IRQ_ON
-		@take_interrupt
-	}
-
 macro   nsc800_take_interrupt
 	// Check if processor was halted
 	leave_halt();
@@ -1017,7 +1039,7 @@ macro   nsc800_take_interrupt
 		@wm16_sp PC
 		PC = 0x002c;
 	} else {
-		+ 2 * m_memrq_cycles
+		+ 2 * m_mreq_cycles
 		;
 	}
 	WZ = PC;
@@ -1044,20 +1066,21 @@ ffff
 		return;
 	}
 	if (m_service_attention) {
-		if (m_busrq_state) { // SA_BUSRQ
+		if (m_busreq_state) { // SA_BUSREQ
 			if (!m_busack_state) {
 				m_busack_state = 1;
-				set_service_attention<SA_BUSACK, 1>();
 				m_busack_cb(1);
 			}
 			if (m_icount > 0)
 				m_icount = 0;
 			m_ref = 0xffff00;
 			return;
-		} else if (m_busack_state) { // SA_BUSACK
-			m_busack_state = 0;
-			set_service_attention<SA_BUSACK, 0>();
-			m_busack_cb(0);
+		} else {
+			set_service_attention<SA_BUSREQ, 0>();
+			if (m_busack_state) {
+				m_busack_state = 0;
+				m_busack_cb(0);
+			}
 		}
 		@check_interrupts
 		set_service_attention<SA_AFTER_EI, 0>();
@@ -8921,6 +8944,7 @@ macro   ldix
 		@wm DE
 		;
 	}
+	+ 2
 	HL++;
 	DE++;
 	BC--;
@@ -8933,6 +8957,7 @@ macro   lddx
 		@wm DE
 		;
 	}
+	+ 2
 	DE++;
 	HL--;
 	BC--;
@@ -8983,33 +9008,40 @@ z80n:ed33	# add bc,a
 z80n:ed34	# add hl,**
 	@arg16 TDAT
 	HL += TDAT;
+	+ 2
 
 z80n:ed35	# add de,**
 	@arg16 TDAT
 	DE += TDAT;
+	+ 2
 
 z80n:ed36	# add bc,**
 	@arg16 TDAT
 	BC += TDAT;
+	+ 2
 
 z80n:ed8a	# push **
 	@arg
 	TDAT_H = TDAT_L;
 	@arg
 	@push TDAT
+	+ 3
 
 z80n:ed90	# outinb
 	@rm HL
 	@out BC
 	HL++;
+	+ 1
 
 z80n:ed91	# nextreg *,*
 	@arg16 TDAT
 	m_out_nextreg_cb(TDAT_L, TDAT_H);
+	+ 6
 
 z80n:ed92	# nextreg *,a
 	@arg
 	m_out_nextreg_cb(TDAT8, A);
+	+ 3
 
 z80n:ed93	# pixeldn
 	if (0x07 != (H & 0x07))
@@ -9028,6 +9060,7 @@ z80n:ed95	# setae
 z80n:ed98	# jp (c)
 	@in BC
 	PC = (PC & 0xc000) + (TDAT8 << 6);
+	+ 1
 
 z80n:eda4	# ldix
 	@ldix
@@ -9043,8 +9076,10 @@ z80n:edac	# lddx
 
 z80n:edb4	# ldirx
 	@ldix
-	if (BC != 0)
+	if (BC != 0) {
+		+ 5
 		PC -= 2;
+	}
 
 z80n:edb7	# ldpirx
 	@rm (HL & 0xfff8) + (E & 7)
@@ -9054,10 +9089,14 @@ z80n:edb7	# ldpirx
 	}
 	DE++;
 	BC--;
-	if (BC != 0)
+	if (BC != 0) {
+		+ 5
 		PC -= 2;
+	}
 
 z80n:edbc	# lddrx
 	@lddx
-	if (BC != 0)
+	if (BC != 0) {
+		+ 5
 		PC -= 2;
+	}

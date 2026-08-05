@@ -215,7 +215,7 @@ static INPUT_PORTS_START( vroulet )
 	PORT_DIPSETTING(    0x05, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( 1C_4C ) )
 	PORT_DIPSETTING(    0x03, DEF_STR( 1C_5C ) )
-	PORT_DIPSETTING(    0x02, "1 Coin/10 Credits" )
+	PORT_DIPSETTING(    0x02, DEF_STR( 1C_10C ) )
 	PORT_DIPNAME( 0x38, 0x38, DEF_STR( Coin_B ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 3C_1C ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( 2C_1C ) )
@@ -224,7 +224,7 @@ static INPUT_PORTS_START( vroulet )
 	PORT_DIPSETTING(    0x20, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(    0x18, DEF_STR( 1C_4C ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( 1C_5C ) )
-	PORT_DIPSETTING(    0x38, "1 Coin/10 Credits" )
+	PORT_DIPSETTING(    0x38, DEF_STR( 1C_10C ) )
 	PORT_DIPNAME( 0xc0, 0xc0, "Revolutions" )
 	PORT_DIPSETTING(    0x80, "1" )
 	PORT_DIPSETTING(    0xc0, "2" )
@@ -306,7 +306,7 @@ void vroulet_state::vroulet(machine_config &config)
 	ppi1.out_pc_callback().set(FUNC(vroulet_state::ppi8255_c_w));
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(32*8, 32*8);

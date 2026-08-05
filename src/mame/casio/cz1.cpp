@@ -781,11 +781,6 @@ int cz1_state::sync49_r()
 /**************************************************************************/
 void cz1_state::machine_start()
 {
-	m_leds.resolve();
-	m_led_env.resolve();
-	m_led_bank.resolve();
-	m_led_tone.resolve();
-
 	// aftertouch amp levels (TODO: are these correct?)
 	for (int i = 0; i < 0x40; i++)
 		m_volume[i] = pow(2, (float)i / 0x3f) - 1.0;
@@ -859,7 +854,7 @@ void cz1_state::mz1(machine_config &config)
 	mdin.rxd_handler().append("mdthru", FUNC(midi_port_device::write_txd));
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen_device &screen(SCREEN(config, "screen").set_lcd());
 	screen.set_refresh_hz(50);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 	screen.set_size(6*16 + 1, 19);
@@ -879,18 +874,18 @@ void cz1_state::mz1(machine_config &config)
 	// sound hardware
 	SPEAKER(config, "speaker", 2).front();
 
-	MIXER(config, m_mixer[0]).add_route(0, "speaker", 1.0, 0);
-	MIXER(config, m_mixer[1]).add_route(0, "speaker", 1.0, 1);
+	MIXER(config, m_mixer[0]).add_route(ALL_OUTPUTS, "speaker", 1.0, 0);
+	MIXER(config, m_mixer[1]).add_route(ALL_OUTPUTS, "speaker", 1.0, 1);
 
 	UPD933(config, m_upd933[0], 8.96_MHz_XTAL / 2);
 	m_upd933[0]->irq_cb().set("irq",  FUNC(input_merger_any_high_device::in_w<0>));
-	m_upd933[0]->add_route(0, m_mixer[0], 1.0);
-	m_upd933[0]->add_route(0, m_mixer[1], 1.0);
+	m_upd933[0]->add_route(0, m_mixer[0], 1.0, 0);
+	m_upd933[0]->add_route(0, m_mixer[1], 1.0, 0);
 
 	UPD933(config, m_upd933[1], 8.96_MHz_XTAL / 2);
 	m_upd933[1]->irq_cb().set("irq",  FUNC(input_merger_any_high_device::in_w<1>));
-	m_upd933[1]->add_route(0, m_mixer[0], 1.0);
-	m_upd933[1]->add_route(0, m_mixer[1], 1.0);
+	m_upd933[1]->add_route(0, m_mixer[0], 1.0, 1);
+	m_upd933[1]->add_route(0, m_mixer[1], 1.0, 1);
 }
 
 /**************************************************************************/

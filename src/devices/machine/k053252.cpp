@@ -65,7 +65,7 @@ TODO:
 #include "multibyte.h"
 
 
-DEFINE_DEVICE_TYPE(K053252, k053252_device, "k053252", "K053252 Timing/Interrupt Controller")
+DEFINE_DEVICE_TYPE(K053252, k053252_device, "k053252", "Konami 053252 Timing/Interrupt Controller")
 
 k053252_device::k053252_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, K053252, tag, owner, clock)
@@ -158,7 +158,7 @@ void k053252_device::res_change()
 		rectangle visarea;
 		//(HC+1) - HFP - HBP - 8*(HSW+1)
 		//VC - VFP - VBP - (VSW+1)
-		attoseconds_t refresh = HZ_TO_ATTOSECONDS(clock()) * (m_hc) * m_vc;
+		attotime refresh = attotime::from_ticks(m_hc * m_vc, clock());
 
 		visarea.min_x = m_offsx;
 		visarea.min_y = m_offsy;

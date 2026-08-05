@@ -13,6 +13,7 @@
 #include "debugwin.h"
 
 #include "debugbaseinfo.h"
+#include "uimetrics.h"
 
 
 namespace osd::debugger::win {
@@ -23,6 +24,8 @@ public:
 	virtual ~debugwin_info();
 
 	bool is_valid() const { return m_wnd != nullptr; }
+
+	ui_metrics const &metrics() const { return m_metrics; }
 
 	void set_ignore_char_lparam(LPARAM value) { m_ignore_char_lparam = value >> 16; }
 	bool check_ignore_char_lparam(LPARAM value)
@@ -43,6 +46,7 @@ public:
 	void set_foreground() const { SetForegroundWindow(m_wnd); }
 	void redraw();
 	void destroy();
+	bool owns_window(HWND win) const;
 
 	virtual bool set_default_focus();
 	void prev_view(debugview_info *curview);
@@ -59,6 +63,7 @@ protected:
 	static DWORD const  DEBUG_WINDOW_STYLE_EX = 0;
 
 	static int const    EDGE_WIDTH = 3;
+	static int const    MAX_VIEWS = 4;
 
 	enum
 	{
@@ -121,28 +126,18 @@ protected:
 		ID_DEVICE_OPTIONS   // always keep this at the end
 	};
 
-	// Indices for use with m_views.  Each *win_info class that can appear
-	// as a frame within the main consolewin_info should use these
-	// indices to find its *view_info class, even when it's currently
-	// shown as an independent free-floating window.  All other *win_info
-	// classes (e.g., logwin_info, pointswin_info, etc.) just use m_views[0]
-	enum
-	{
-		VIEW_IDX_DISASM,
-		VIEW_IDX_STATE,
-		VIEW_IDX_CONSOLE,
-		MAX_VIEWS
-	};
-
 	debugwin_info(debugger_windows_interface &debugger, bool is_main_console, LPCSTR title, WNDPROC handler);
 
 	bool is_main_console() const { return m_is_main_console; }
 	HWND window() const { return m_wnd; }
 	uint32_t minwidth() const { return m_minwidth; }
 	uint32_t maxwidth() const { return m_maxwidth; }
+	uint32_t minheight() const { return m_minheight; }
 	void set_minwidth(uint32_t value) { m_minwidth = value; }
 	void set_maxwidth(uint32_t value) { m_maxwidth = value; }
+	void set_minheight(uint32_t value) { m_minheight = value; }
 
+	virtual void update_dpi();
 	virtual void recompute_children();
 	virtual void update_menu() { }
 	virtual bool handle_command(WPARAM wparam, LPARAM lparam);
@@ -163,6 +158,7 @@ private:
 
 	static void register_window_class();
 
+	ui_metrics      m_metrics;
 	bool const      m_is_main_console;
 
 	HWND            m_wnd;

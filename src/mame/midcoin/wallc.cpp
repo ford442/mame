@@ -430,17 +430,17 @@ static INPUT_PORTS_START( unkitpkr )
 	PORT_DIPSETTING(    0x00, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( 1C_5C ) )
-	PORT_DIPSETTING(    0x03, "1 Coin/10 Credits" )
+	PORT_DIPSETTING(    0x03, DEF_STR( 1C_10C ) )
 	PORT_DIPNAME( 0x0c, 0x00, DEF_STR( Coin_B ) )   PORT_DIPLOCATION("SW2:3,4") // ok
 	PORT_DIPSETTING(    0x00, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( 1C_5C ) )
-	PORT_DIPSETTING(    0x0c, "1 Coin/10 Credits" )
+	PORT_DIPSETTING(    0x0c, DEF_STR( 1C_10C ) )
 	PORT_DIPNAME( 0x30, 0x00, "Coin C" )            PORT_DIPLOCATION("SW2:5,6") // ok
 	PORT_DIPSETTING(    0x00, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(    0x20, DEF_STR( 1C_5C ) )
-	PORT_DIPSETTING(    0x30, "1 Coin/10 Credits" )
+	PORT_DIPSETTING(    0x30, DEF_STR( 1C_10C ) )
 	PORT_DIPUNUSED_DIPLOC( 0x40, 0x40, "SW2:7" )
 	PORT_DIPUNUSED_DIPLOC( 0x80, 0x80, "SW2:8" )
 INPUT_PORTS_END
@@ -547,7 +547,7 @@ void wallc_state::wallc(machine_config &config)
 	ADC0804(config, "adc", 640000).vin_callback().set_ioport("DIAL"); // clock not verified
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
 	screen.set_size(32*8, 32*8);

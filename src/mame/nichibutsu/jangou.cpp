@@ -730,10 +730,10 @@ static INPUT_PORTS_START( cntrygrl )
 	PORT_DIPSETTING(    0x00, "20" )
 	PORT_DIPNAME( 0x20, 0x20, "Coin A setting" )  PORT_DIPLOCATION("SW1:6")
 	PORT_DIPSETTING(    0x20, DEF_STR( 1C_1C ) )
-	PORT_DIPSETTING(    0x00, "1 Coin / 25 Credits" )
+	PORT_DIPSETTING(    0x00, DEF_STR( 1C_25C ) )
 	PORT_DIPNAME( 0x40, 0x40, "Coin B setting"  )  PORT_DIPLOCATION("SW1:7")
 	PORT_DIPSETTING(    0x40, DEF_STR( 1C_5C ) )
-	PORT_DIPSETTING(    0x00, "1 Coin / 10 Credits"  )
+	PORT_DIPSETTING(    0x00, DEF_STR( 1C_10C ) )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("blitter", FUNC(jangou_blitter_device::status_r))
 INPUT_PORTS_END
 
@@ -969,7 +969,7 @@ void cntrygrl_state::cntrygrl(machine_config &config)
 	JANGOU_BLITTER(config, "blitter", MASTER_CLOCK/4);
 
 	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(MASTER_CLOCK/4,320,0,256,264,16,240); // assume same as nightgal.cpp
 	screen.set_screen_update(FUNC(cntrygrl_state::screen_update));
 	screen.set_palette(m_palette);

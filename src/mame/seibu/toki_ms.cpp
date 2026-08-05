@@ -697,7 +697,7 @@ void toki_ms_state::tokims(machine_config &config)
 	m_audiocpu->set_addrmap(AS_PROGRAM, &toki_ms_state::audio_map);
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(20_MHz_XTAL / 3, 426, 0, 256, 272, 16, 240); // FIXME: generic, not measured
 	m_screen->set_screen_update(FUNC(toki_ms_state::screen_update));
 	m_screen->set_palette(m_palette);
@@ -799,7 +799,7 @@ ROM_START( tokims )
 	ROM_LOAD( "7_7440_palce16v8h-25pc.ic9",  0x000, 0x117, CRC(ef91df6b) SHA1(bb8cab1610658676453a25b9724f53b7301b0a3f) )
 	ROM_LOAD( "7_7540_palce16v8h-25pc.ic59", 0x000, 0x117, CRC(b90da793) SHA1(b6e32d5bcc41819a830c7ad8c418404b3db247ef) )
 	ROM_LOAD( "7_7640_gal20v8-20hb1.ic44",   0x000, 0x157, CRC(ce03bb39) SHA1(355cc48238f82796befb454adec84bfb50bf3184) )
-	ROM_LOAD( "51_503_palce16v8h-25pc.ic46", 0x000, 0x117, NO_DUMP )
+	ROM_LOAD( "51_503_palce16v8h-25pc.ic46", 0x000, 0x117, CRC(11470ea1) SHA1(cfcafbcc7e55be717348f895df61e144fdd0cc9b) )
 
 	ROM_REGION( 0x400, "proms", ROMREGION_ERASE00 )
 	ROM_LOAD( "51_502_82s129an.ic10", 0x0000, 0x100, CRC(15085e44) SHA1(646e7100fcb112594023cf02be036bd3d42cc13c) ) // same as every other modular bootleg

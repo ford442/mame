@@ -790,7 +790,7 @@ void tvc_state::tvc(machine_config &config)
 	m_bank4->set_addrmap(0, &tvc_state::tvc_bank4);
 
 	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(50);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 	screen.set_size(512, 240);
@@ -811,7 +811,7 @@ void tvc_state::tvc(machine_config &config)
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
-	TVC_SOUND(config, m_sound, 0);
+	TVC_SOUND(config, m_sound);
 	m_sound->sndint_wr_callback().set(FUNC(tvc_state::int_ff_set));
 	m_sound->add_route(ALL_OUTPUTS, "mono", 0.75);
 
@@ -902,6 +902,6 @@ ROM_END
 /* Driver */
 
 //    YEAR  NAME      PARENT  COMPAT  MACHINE  INPUT     CLASS         INIT        COMPANY       FULLNAME             FLAGS
-COMP( 1985, tvc64,    0,      0,      tvc,     tvc,      tvc_state,    empty_init, "Videoton",   "TVC 64",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
-COMP( 1985, tvc64p,   tvc64,  0,      tvc64p,  tvc,      tvc64p_state, empty_init, "Videoton",   "TVC 64+",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
-COMP( 1985, tvc64pru, tvc64,  0,      tvc64p,  tvc64pru, tvc64p_state, empty_init, "Videoton",   "TVC 64+ (Russian)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+COMP( 1985, tvc64,    0,      0,      tvc,     tvc,      tvc_state,    empty_init, "Videoton",   "TVC 64",            MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+COMP( 1985, tvc64p,   tvc64,  0,      tvc64p,  tvc,      tvc64p_state, empty_init, "Videoton",   "TVC 64+",           MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )
+COMP( 1985, tvc64pru, tvc64,  0,      tvc64p,  tvc64pru, tvc64p_state, empty_init, "Videoton",   "TVC 64+ (Russian)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND )

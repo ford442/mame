@@ -12,7 +12,7 @@
 
 #include "modules/osdmodule.h"
 
-#if (defined(OSD_SDL) || defined(USE_SDL_SOUND))
+#if (defined(OSD_SDL) || defined(USE_SDL_SOUND)) && !defined(SDLMAME_SDL3)
 
 #include "modules/lib/osdobj_common.h"
 #include "osdcore.h"
@@ -66,7 +66,7 @@ private:
 		uint32_t m_id;
 		SDL_AudioDeviceID m_sdl_id;
 		abuffer m_buffer;
-		stream_info(uint32_t id, uint8_t channels) : m_id(id), m_sdl_id(0), m_buffer(channels) {}
+		stream_info(uint32_t id, uint8_t channels, uint32_t rate) : m_id(id), m_sdl_id(0), m_buffer(channels, rate) {}
 	};
 
 	std::vector<device_info> m_devices;
@@ -106,6 +106,10 @@ int sound_sdl::init(osd_interface &osd, const osd_options &options)
 		const char *const name = SDL_GetAudioDeviceName(i, 0);
 #if SDL_VERSION_ATLEAST(2, 0, 16)
 		const int err = SDL_GetAudioDeviceSpec(i, 0, &spec);
+		// the ALSA backend in SDL2 doesn't return the number of channels, just fall back to a safe value
+		if (spec.channels == 0) {
+			spec.channels = 2;
+		}
 #else
 		// seems to be no way to get the device's native format before SDL 2.0.16, just fall back to 48kHz stereo
 		const int err = 0;
@@ -198,7 +202,7 @@ osd::audio_info sound_sdl::get_information()
 uint32_t sound_sdl::stream_sink_open(uint32_t node, std::string name, uint32_t rate)
 {
 	device_info &dev = m_devices[node-1];
-	std::unique_ptr<stream_info> stream = std::make_unique<stream_info>(m_stream_next_id ++, dev.m_channels);
+	std::unique_ptr<stream_info> stream = std::make_unique<stream_info>(m_stream_next_id ++, dev.m_channels, rate);
 
 	SDL_AudioSpec dspec, ospec;
 	dspec.freq = rate;
@@ -247,8 +251,7 @@ void sound_sdl::sink_callback(void *userdata, uint8_t *data, int len)
 
 } // namespace osd
 
-
-#else // (defined(OSD_SDL) || defined(USE_SDL_SOUND))
+#else // (defined(OSD_SDL) || defined(USE_SDL_SOUND)) && !defined(SDLMAME_SDL3)
 
 namespace osd { namespace { MODULE_NOT_SUPPORTED(sound_sdl, OSD_SOUND_PROVIDER, "sdl") } }
 

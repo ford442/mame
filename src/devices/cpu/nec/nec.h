@@ -28,7 +28,7 @@ class nec_common_device : public cpu_device, public nec_disassembler::config
 
 protected:
 	// construction/destruction
-	nec_common_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, bool is_16bit, uint8_t prefetch_size, uint8_t prefetch_cycles, uint32_t chip_type, address_map_constructor internal_port_map = address_map_constructor());
+	nec_common_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, bool is_16bit, uint8_t prefetch_size, uint8_t prefetch_cycles, uint32_t chip_type, bool has_div_quirk, address_map_constructor internal_port_map = address_map_constructor());
 
 	// device-level overrides
 	virtual void device_start() override ATTR_COLD;
@@ -79,6 +79,7 @@ private:
 
 	uint16_t  m_ip;
 	uint16_t  m_prev_ip;
+	uint16_t  m_rep_ip;
 
 	/* PSW flags */
 	int32_t   m_SignVal;
@@ -99,6 +100,7 @@ private:
 	uint32_t  m_poll_state;
 	uint8_t   m_no_interrupt;
 	uint8_t   m_halted;
+	uint32_t  m_rep_params;
 
 	address_space *m_program;
 	memory_access<24, 0, 0, ENDIANNESS_LITTLE>::cache m_cache8;
@@ -108,11 +110,14 @@ private:
 	address_space *m_io;
 	int     m_icount;
 
+	int32_t   m_cur_cycles;
 	uint8_t   m_prefetch_size;
-	uint8_t   m_prefetch_cycles;
-	int8_t    m_prefetch_count;
+	int32_t   m_prefetch_cycles;
+	int32_t   m_prefetch_count;
 	uint8_t   m_prefetch_reset;
 	const uint32_t m_chip_type;
+	// https://github.com/mamedev/mame/pull/15620
+	bool      m_has_div_quirk;
 
 	uint32_t  m_prefix_base;    /* base address of the latest prefix segment */
 	uint8_t   m_seg_prefix;     /* prefix segment indicator */
@@ -139,7 +144,7 @@ protected:
 
 private:
 	inline void prefetch();
-	void do_prefetch(int previous_ICount);
+	void do_prefetch();
 	inline uint8_t fetch();
 	inline uint16_t fetchword();
 	uint8_t fetchop();
@@ -147,6 +152,13 @@ private:
 	void nec_trap();
 	void nec_brk(unsigned int_num);
 	void external_int();
+
+	uint8_t start_rep();
+	void cont_rep();
+	void do_repnc(uint8_t next);
+	void do_repc(uint8_t next);
+	void do_repne(uint8_t next);
+	void do_repe(uint8_t next);
 
 	void i_add_br8();
 	void i_add_wr16();

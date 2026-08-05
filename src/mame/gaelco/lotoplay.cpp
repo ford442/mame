@@ -7,7 +7,6 @@
  free play.
 
  It's a very simple PCB with this layout:
-
   ___________________________________
  |   _________               O <- GREEN LED
  |  |_8xDIPS_|            O     O   |
@@ -18,8 +17,9 @@
 =|= <- 8-Pin Connector              |
  |__________________________________|
 
- Roulette of eight LEDS, seven red and one green (the upper one).
- There are at least two version, onw from 1988 and other from 1990.
+ Roulette of eight LEDs, seven red and one green (the upper one).
+ There are at least two versions, one from 1988 and other from 1990.
+ Some units use a M68705P5 or a Z80 instead of a MC68705P3S.
 
  More info and dip switches:
   - https://www.recreativas.org/loto-play-88-11392-gaelco-sa
@@ -28,14 +28,28 @@
  First Games arcade cab (see the bezel left upper corner with the roulette):
   - https://www.recreativas.org/first-games-954-covielsa
 
- There are other versions with external ROM, and even others with PIC16C54
- instead of the MC68705 MCU.
+ Version with a PIC16C54 as main CPU:
+  _____________________________________________
+ |  |_8xDIPS_|   __________            O <- GREEN LED
+ |              |SN74LS166N         O     O   |
+ |                   Xtal         O         O |
+ |                  4 MHz           O     O   |
+ |         ___   ___                   O      |
+=|=       |  |  |  |<-PIC16C54-XT/P           |
+=|= <- 8-Pin Connector     ___                |
+ |        |  |<-CNY/74-4  |  |<-TL7702ACP     |
+ |        |__|  |__|      |__|                |
+ |____________________________________________|
+
+ There is another type of PCB  with a Z80 (exact model unknown) and a external ROM.
 
 *******************************************************************************/
 
 #include "emu.h"
+
 #include "cpu/m6805/m68705.h"
 #include "cpu/pic16c5x/pic16c5x.h"
+#include "cpu/z80/z80.h"
 
 namespace
 {
@@ -50,8 +64,8 @@ public:
 	}
 
 	void lotoplay_p3(machine_config &config);
-	void lotoplay_p5(machine_config &config);
 	void lotoplay_pic(machine_config &config);
+	void lotoplay_z80(machine_config &config);
 
 protected:
 	required_device<cpu_device> m_maincpu;
@@ -65,17 +79,18 @@ void lotoplay_state::lotoplay_p3(machine_config &config)
 	M68705P3(config, m_maincpu, 3'579'545); // MC68705P3S, unknown clock
 }
 
-void lotoplay_state::lotoplay_p5(machine_config &config)
-{
-	M68705P5(config, m_maincpu, 3'579'545); // MC68705P5S, unknown clock
-}
-
 void lotoplay_state::lotoplay_pic(machine_config &config)
 {
-	PIC16C54(config, m_maincpu, 3'000'000); // PIC16C54, unknown clock
+	PIC16C54(config, m_maincpu, 4_MHz_XTAL); // PIC16C54
 }
 
-// Sets with MC68705 MCU.
+void lotoplay_state::lotoplay_z80(machine_config &config)
+{
+	Z80(config, m_maincpu, 4'000'000); // unknown clock
+}
+
+
+// Sets with MC68705.
 
 ROM_START(lotoplay)
 	ROM_REGION(0x0800, "maincpu", 0)
@@ -92,21 +107,40 @@ ROM_START(lotoplayb)
 	ROM_LOAD("lp_vii_sch_mostra_11302_68705p3s.bin", 0x0000, 0x0800, CRC(61b426d3) SHA1(b66dc6c382a04d8cdbaee342f179ce80abfd3c71))
 ROM_END
 
-ROM_START(lotoplayc)
-	ROM_REGION(0x0800, "maincpu", 0)
-	ROM_LOAD("miv_00_68705p5s.bin",                  0x0000, 0x0800, CRC(67b1d2fc) SHA1(98ea18d4f55faef369a8fd701f936efab3cd084f))
-ROM_END
+
+// Sets with PIC16C54.
 
 ROM_START(lotoplayp)
 	ROM_REGION(0x1fff, "maincpu", 0)
 	ROM_LOAD("loto_play_ff46_pic16c54.bin",          0x0000, 0x1fff, CRC(8840349d) SHA1(e9dcc572c7b577618ddda06be1538be69eb15584))
 ROM_END
 
+
+// Sets with Z80.
+
+ROM_START(lotoplayz)
+	ROM_REGION(0x2000, "maincpu", 0)
+	ROM_LOAD("grab._lp_sp_ultima_27c64.bin",         0x0000, 0x2000, CRC(980e14ac) SHA1(3f6dc75a8cb3fe38941b8a7900ecccdafabc14e9))
+ROM_END
+
+ROM_START(lotoplayza)
+	ROM_REGION(0x2000, "maincpu", 0)
+	ROM_LOAD("grab._lp_s_3b4c_27c64.bin",            0x0000, 0x2000, CRC(556e2c35) SHA1(612f160592fd122e5a91914618e19eade5b52c3e))
+ROM_END
+
+ROM_START(lotoplayzb)
+	ROM_REGION(0x2000, "maincpu", 0)
+	ROM_LOAD("multn_0.0_27c64.bin",                  0x0000, 0x2000, CRC(e74bce2a) SHA1(66a09f5df3a27b0c4bc964b19450734b736dc768))
+ROM_END
+
+
 } // anonymous namespace
 
-//    YEAR   NAME       PARENT    MACHINE       INPUT     CLASS           INIT        ROT   COMPANY              FULLNAME                FLAGS
-GAME( 1988?, lotoplay,  0,        lotoplay_p3,  lotoplay, lotoplay_state, empty_init, ROT0, "Gaelco / Covielsa", "Loto-Play (set 1)",    MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING )
-GAME( 1988?, lotoplaya, lotoplay, lotoplay_p3,  lotoplay, lotoplay_state, empty_init, ROT0, "Gaelco / Covielsa", "Loto-Play (set 2)",    MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING )
-GAME( 1988?, lotoplayb, lotoplay, lotoplay_p3,  lotoplay, lotoplay_state, empty_init, ROT0, "Gaelco / Covielsa", "Loto-Play (set 3)",    MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING )
-GAME( 1988?, lotoplayc, lotoplay, lotoplay_p5,  lotoplay, lotoplay_state, empty_init, ROT0, "Gaelco / Covielsa", "Loto-Play (set 4)",    MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING )
-GAME( 1990?, lotoplayp, lotoplay, lotoplay_pic, lotoplay, lotoplay_state, empty_init, ROT0, "Gaelco / Covielsa", "Loto-Play (PIC16C54)", MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING )
+//    YEAR   NAME        PARENT    MACHINE       INPUT     CLASS           INIT        ROT   COMPANY              FULLNAME                      FLAGS
+GAME( 1988?, lotoplay,   0,        lotoplay_p3,  lotoplay, lotoplay_state, empty_init, ROT0, "Gaelco / Covielsa", "Loto-Play (MC68705, set 1)", MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING )
+GAME( 1988?, lotoplaya,  lotoplay, lotoplay_p3,  lotoplay, lotoplay_state, empty_init, ROT0, "Gaelco / Covielsa", "Loto-Play (MC68705, set 2)", MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING )
+GAME( 1988?, lotoplayb,  lotoplay, lotoplay_p3,  lotoplay, lotoplay_state, empty_init, ROT0, "Gaelco / Covielsa", "Loto-Play (MC68705, set 3)", MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING )
+GAME( 1990?, lotoplayp,  lotoplay, lotoplay_pic, lotoplay, lotoplay_state, empty_init, ROT0, "Gaelco / Covielsa", "Loto-Play (PIC16C54)",       MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING )
+GAME( 1990?, lotoplayz,  lotoplay, lotoplay_z80, lotoplay, lotoplay_state, empty_init, ROT0, "Gaelco / Covielsa", "Loto-Play (Z80, set 1)",     MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING )
+GAME( 1990?, lotoplayza, lotoplay, lotoplay_z80, lotoplay, lotoplay_state, empty_init, ROT0, "Gaelco / Covielsa", "Loto-Play (Z80, set 2)",     MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING )
+GAME( 1990?, lotoplayzb, lotoplay, lotoplay_z80, lotoplay, lotoplay_state, empty_init, ROT0, "Gaelco / Covielsa", "Loto-Play (Z80, set 3)",     MACHINE_NO_SOUND_HW | MACHINE_NOT_WORKING )

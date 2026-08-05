@@ -11,7 +11,7 @@
 
 #define K007232_LOG_PCM (0)
 
-DEFINE_DEVICE_TYPE(K007232, k007232_device, "k007232", "K007232 PCM Controller")
+DEFINE_DEVICE_TYPE(K007232, k007232_device, "k007232", "Konami 007232 PCM Controller")
 
 k007232_device::k007232_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock)
 	: device_t(mconfig, K007232, tag, owner, clock)
@@ -34,7 +34,7 @@ k007232_device::k007232_device(const machine_config &mconfig, const char *tag, d
 void k007232_device::device_start()
 {
 	// assumes it can make an address mask with m_rom.length() - 1
-	assert (!m_rom.found() || !(m_rom.length() & (m_rom.length() - 1)));
+	assert(!m_rom.found() || std::has_single_bit(m_rom.length()));
 
 	m_pcmlimit = 1 << 17;
 	// default mapping (bankswitched ROM)

@@ -275,9 +275,7 @@ void base_state::draw_sprites( bitmap_ind16 &bitmap, const rectangle &cliprect )
 
 		/* Note that this adjustment must be done AFTER handling flip_screen(), thus
 		   proving that this is a hardware related "feature" */
-
 		sy += 1;
-
 
 		m_gfxdecode->gfx(0)->transmask(bitmap, cliprect,
 		code, color,
@@ -630,7 +628,7 @@ void base_state::base(machine_config &config)
 	WATCHDOG_TIMER(config, "watchdog");
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	m_screen->set_size(32*8, 32*8);
@@ -647,7 +645,7 @@ void base_state::base(machine_config &config)
 
 	GENERIC_LATCH_8(config, "soundlatch");
 
-	TRACKFLD_AUDIO(config, m_soundbrd, 0, m_audiocpu, finder_base::DUMMY_TAG);
+	TRACKFLD_AUDIO(config, m_soundbrd, m_audiocpu, finder_base::DUMMY_TAG);
 
 	DAC_8BIT_R2R(config, m_dac, 0).add_route(ALL_OUTPUTS, "speaker", 0.4); // unknown DAC
 
@@ -680,7 +678,7 @@ void hypersptb_state::hypersptb(machine_config &config)
 
 	GENERIC_LATCH_8(config, "soundlatch2");
 
-	HYPROLYB_ADPCM(config, "hyprolyb_adpcm", 0);
+	HYPROLYB_ADPCM(config, "hyprolyb_adpcm");
 
 	msm5205_device &msm(MSM5205(config, "msm", 384'000));
 	msm.vck_legacy_callback().set("hyprolyb_adpcm", FUNC(hyprolyb_adpcm_device::vck_callback));

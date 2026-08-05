@@ -245,7 +245,6 @@ private:
 	void speakres_out2_w(uint8_t data);
 	void stratvox_sn76477_w(uint8_t data);
 	void stratvox_dac_w(uint8_t data);
-	DECLARE_MACHINE_START(speakres);
 
 	void speakres_cpu1_map(address_map &map) ATTR_COLD;
 	void stratvox_cpu1_map(address_map &map) ATTR_COLD;
@@ -1120,7 +1119,7 @@ void route16_state::route16(machine_config &config)
 	config.set_maximum_quantum(attotime::from_hz(m_cpu1->clock() / 4));
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(10_MHz_XTAL / 2, 320, 0, 256, 260, 8, 248);
 	m_screen->set_screen_update(FUNC(route16_state::screen_update_route16));
 
@@ -1194,7 +1193,7 @@ void jongpute_state::jongpute(machine_config &config)
 {
 	route16(config);
 	m_cpu1->set_addrmap(AS_PROGRAM, &jongpute_state::jongpute_cpu1_map);
-	m_cpu1->set_addrmap(AS_IO, address_map_constructor());
+	m_cpu1->remove_addrmap(AS_IO);
 
 	// video hardware
 	m_screen->set_screen_update(FUNC(jongpute_state::screen_update_stratvox));

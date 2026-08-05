@@ -174,7 +174,7 @@ uint8_t phc20_state::system_r()
 
 	uint8_t data = 0x00;
 
-	data |= (m_cassette->input() < +0.3) << 0;
+	data |= (m_cassette->input() > +0.3) << 0;
 	data |= m_vdg->fs_r() << 1;
 
 	return data;
@@ -209,9 +209,9 @@ void phc20_state::phc20(machine_config &config)
 	Z80(config, m_maincpu, 3.579545_MHz_XTAL);
 	m_maincpu->set_addrmap(AS_PROGRAM, &phc20_state::mem_map);
 
-	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
+	SCREEN(config, "screen");
 
-	MC6847_PAL(config, m_vdg, 3.579545_MHz_XTAL);
+	M5C6847P1(config, m_vdg, 3.579545_MHz_XTAL);
 	m_vdg->set_screen("screen");
 	m_vdg->input_callback().set(FUNC(phc20_state::video_ram_r));
 	m_vdg->set_black_and_white(true);

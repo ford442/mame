@@ -120,13 +120,13 @@ GFXDECODE_END
 
 void vgame_state::vgame(machine_config &config)
 {
-	ARM7(config, m_maincpu, 44_MHz_XTAL); // CPU core unknown; ROMs seem to contain at least some ARM or Thumb code
+	ARM7(config, m_maincpu, 44_MHz_XTAL); // CPU core unknown (possibly AT91SAM7SE256 or similar); ROMs seem to contain at least some ARM or Thumb code
 	m_maincpu->set_addrmap(AS_PROGRAM, &vgame_state::program_map);
 	// m_maincpu->set_vblank_int("screen", FUNC(vgame_state::irq0_line_hold));
 
 	EEPROM_93C66_16BIT(config, "eeprom");
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER)); // TODO
+	screen_device &screen(SCREEN(config, "screen")); // TODO
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(64*8, 64*8);

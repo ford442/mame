@@ -918,7 +918,7 @@ static INPUT_PORTS_START( muscl )
 	PORT_DIPSETTING(      0x0007, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(      0x0001, DEF_STR( 4C_3C ) )
 	PORT_DIPSETTING(      0x0002, DEF_STR( 2C_3C ) )
-	PORT_DIPSETTING(      0x0000, "5 Coins/2 Credits" )
+	PORT_DIPSETTING(      0x0000, DEF_STR( 5C_2C ) )
 	PORT_DIPNAME( 0x0078, 0x0078, "Coin Slot 2" ) PORT_DIPLOCATION("SW1:4,5,6,7")
 	PORT_DIPSETTING(      0x0078, "2 Medals" )
 //  PORT_DIPSETTING(      0x0070, "2 Medals" )
@@ -1057,7 +1057,7 @@ void gsan_state::gsan(machine_config &config)
 	RTC4553(config, "rtc");
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_screen_update(FUNC(gsan_state::screen_update));
 	m_screen->set_raw(XTAL(36'000'000) / 3, 500, 0, 400, 400, 0, 300);
 	m_screen->screen_vblank().set(FUNC(gsan_state::vblank));

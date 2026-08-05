@@ -267,7 +267,7 @@ uint8_t triplhnt_state::da_latch_r(offs_t offset)
 		m_da_latch = offset;
 
 	// the following is a slight simplification
-	return m_stick[offset & 1]->read();
+	return m_stick[~offset & 1]->read();
 }
 
 
@@ -466,7 +466,7 @@ void triplhnt_state::triplhnt(machine_config &config)
 	WATCHDOG_TIMER(config, m_watchdog);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_video_attributes(VIDEO_ALWAYS_UPDATE);
 	screen.set_refresh_hz(60);
 	screen.set_size(256, 262);

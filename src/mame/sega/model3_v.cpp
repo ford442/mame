@@ -4,6 +4,8 @@
 #include "video/rgbutil.h"
 #include "model3.h"
 
+#include "endianness.h"
+
 /*
     TODO:
     - Tilemap flash effect
@@ -1655,18 +1657,12 @@ void model3_state::draw_model(uint32_t addr)
 			{
 				float dot = dot_product3(n, m_parallel_light);
 
-				if (header[1] & 0x10)
-					dot = fabs(dot);
+				// apply sun clamp
+				// TODO: lamachin and daytona2 disables this thru JTAG
+				dot = std::max(dot, 0.0f);
 
 				intensity = ((dot * m_parallel_light_intensity) + m_ambient_light_intensity) * 255.0f;
-				if (intensity > 255.0f)
-				{
-					intensity = 255.0f;
-				}
-				if (intensity < 0.0f)
-				{
-					intensity = 0.0f;
-				}
+				intensity = std::clamp(intensity, 0.0f, 255.0f);
 			}
 			else
 			{
@@ -1723,11 +1719,12 @@ void model3_state::draw_model(uint32_t addr)
 				int tex_height = (header[3] & 0x7);
 				int tex_format = (header[6] >> 7) & 0x7;
 
-				// TODO: color modulation enable should really be a setting
 				// vs2 wants color modulation with ARGB1555 (format 0) radar textures
+				// von2 also uses ARGB1555 for the floor, with header[3] bit 7 off
+				// TODO: check header[4] bit 7, check if ARGB 4444 can also colormod
 				// if (tex_format != 0 && tex_format != 7)
 				if (tex_format != 7)     // enable color modulation if this is not a color texture
-					colormod = true;
+					colormod = !!BIT(header[3], 7);
 
 				if (tex_width >= 6 || tex_height >= 6)      // srally2 poly ram has degenerate polys with 2k tex size (cpu bug or intended?)
 					return;

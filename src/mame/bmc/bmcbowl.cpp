@@ -45,7 +45,7 @@ TODO:
 
 Chips:
 MC68000P10
-Goldstar GM68B45S (same as Hitachi HD6845 CTR Controller)*
+Goldstar GM68B45S (same as Hitachi HD6845 CRT Controller)*
 Winbond WF19054 (same as AY3-8910)
 MK28 (appears to be a AD-65, AKA OKI6295) next to rom 10
 Synertek SY6522 VIA
@@ -472,7 +472,7 @@ void bmcbowl_state::bmcbowl(machine_config &config)
 	M68000(config, m_maincpu, 21.477272_MHz_XTAL / 2);
 	m_maincpu->set_addrmap(AS_PROGRAM, &bmcbowl_state::main_mem);
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 	screen.set_size(35*8, 30*8);
@@ -482,7 +482,7 @@ void bmcbowl_state::bmcbowl(machine_config &config)
 	screen.screen_vblank().append("via6522", FUNC(via6522_device::write_cb1));
 
 	PALETTE(config, m_palette).set_entries(256);
-	ramdac_device &ramdac(RAMDAC(config, "ramdac", 0, m_palette));
+	ramdac_device &ramdac(RAMDAC(config, "ramdac", m_palette));
 	ramdac.set_addrmap(0, &bmcbowl_state::ramdac_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_1);

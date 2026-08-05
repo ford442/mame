@@ -64,13 +64,13 @@ uint32_t i386_device::i386_shift_rotate32(uint8_t modrm, uint32_t value, uint8_t
 		switch( (modrm >> 3) & 0x7 )
 		{
 			case 0:         /* ROL rm32, i8 */
-				dst = rotl_32(src, shift);
+				dst = std::rotl(src, shift);
 				m_CF = dst & 0x1;
 				m_OF = (dst & 1) ^ (dst >> 31);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 1:         /* ROR rm32, i8 */
-				dst = rotr_32(src, shift);
+				dst = std::rotr(src, shift);
 				m_CF = (dst >> 31) & 0x1;
 				m_OF = ((dst >> 31) ^ (dst >> 30)) & 1;
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
@@ -2741,14 +2741,14 @@ void i386_device::i386_groupF7_32()        // Opcode 0xf7
 				if( src ) {
 					remainder = quotient % (uint64_t)src;
 					result = quotient / (uint64_t)src;
-					if( result > 0xffffffff ) {
+					if( result > 0xffffffffULL ) {
 						/* TODO: Divide error */
 					} else {
 						REG32(EDX) = (uint32_t)remainder;
 						REG32(EAX) = (uint32_t)result;
 					}
 				} else {
-					i386_trap(0, 0, 0);
+					i386_trap(0, 0);
 				}
 			}
 			break;
@@ -2769,14 +2769,14 @@ void i386_device::i386_groupF7_32()        // Opcode 0xf7
 				if( src ) {
 					remainder = quotient % (int64_t)(int32_t)src;
 					result = quotient / (int64_t)(int32_t)src;
-					if( result > 0xffffffff ) {
+					if( result > 0x7fffffffLL || result < -0x80000000LL ) {
 						/* TODO: Divide error */
 					} else {
 						REG32(EDX) = (uint32_t)remainder;
 						REG32(EAX) = (uint32_t)result;
 					}
 				} else {
-					i386_trap(0, 0, 0);
+					i386_trap(0, 0);
 				}
 			}
 			break;
@@ -2952,7 +2952,7 @@ void i386_device::i386_group0F00_32()          // Opcode 0x0f 00
 			}
 			else
 			{
-				i386_trap(6, 0, 0);
+				i386_trap(6, 0);
 			}
 			break;
 		case 1:         /* STR */
@@ -2969,7 +2969,7 @@ void i386_device::i386_group0F00_32()          // Opcode 0x0f 00
 			}
 			else
 			{
-				i386_trap(6, 0, 0);
+				i386_trap(6, 0);
 			}
 			break;
 		case 2:         /* LLDT */
@@ -2995,7 +2995,7 @@ void i386_device::i386_group0F00_32()          // Opcode 0x0f 00
 			}
 			else
 			{
-				i386_trap(6, 0, 0);
+				i386_trap(6, 0);
 			}
 			break;
 
@@ -3017,7 +3017,7 @@ void i386_device::i386_group0F00_32()          // Opcode 0x0f 00
 				seg.selector = m_task.segment;
 				i386_load_protected_mode_segment(&seg,nullptr);
 
-				uint32_t addr = ((seg.selector & 4) ? m_ldtr.base : m_gdtr.base) + (seg.selector & ~7) + 5;
+				offs_t addr = ((seg.selector & 4) ? m_ldtr.base : m_gdtr.base) + (seg.selector & ~7) + 5;
 				i386_translate_address(TR_READ, false, &addr, nullptr);
 				m_program->write_byte(addr, (seg.flags & 0xff) | 2);
 
@@ -3027,7 +3027,7 @@ void i386_device::i386_group0F00_32()          // Opcode 0x0f 00
 			}
 			else
 			{
-				i386_trap(6, 0, 0);
+				i386_trap(6, 0);
 			}
 			break;
 
@@ -3077,7 +3077,7 @@ void i386_device::i386_group0F00_32()          // Opcode 0x0f 00
 			}
 			else
 			{
-				i386_trap(6, 0, 0);
+				i386_trap(6, 0);
 				LOGMASKED(LOG_PM_EVENTS, "i386: VERR: Exception - Running in real mode or virtual 8086 mode.\n");
 			}
 			break;
@@ -3118,7 +3118,7 @@ void i386_device::i386_group0F00_32()          // Opcode 0x0f 00
 			}
 			else
 			{
-				i386_trap(6, 0, 0);
+				i386_trap(6, 0);
 				LOGMASKED(LOG_PM_EVENTS, "i386: VERW: Exception - Running in real mode or virtual 8086 mode.\n");
 			}
 			break;
@@ -3416,7 +3416,7 @@ void i386_device::i386_lar_r32_rm32()  // Opcode 0x0f 0x02
 	else
 	{
 		// illegal opcode
-		i386_trap(6,0, 0);
+		i386_trap(6,0);
 		LOGMASKED(LOG_PM_EVENTS, "i386: LAR: Exception - running in real mode or virtual 8086 mode.\n");
 	}
 }
@@ -3481,7 +3481,7 @@ void i386_device::i386_lsl_r32_rm32()  // Opcode 0x0f 0x03
 		}
 	}
 	else
-		i386_trap(6, 0, 0);
+		i386_trap(6, 0);
 }
 
 void i386_device::i386_bound_r32_m32_m32() // Opcode 0x62
@@ -3506,7 +3506,7 @@ void i386_device::i386_bound_r32_m32_m32() // Opcode 0x62
 	if ((val < low) || (val > high))
 	{
 		CYCLES(CYCLES_BOUND_OUT_RANGE);
-		i386_trap(5, 0, 0);
+		i386_trap(5, 0);
 	}
 	else
 	{

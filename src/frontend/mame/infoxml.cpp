@@ -207,6 +207,7 @@ constexpr char f_dtd_string[] =
 		"\t\t\t<!ATTLIST disk status (baddump|nodump|good) \"good\">\n"
 		"\t\t\t<!ATTLIST disk optional (yes|no) \"no\">\n"
 		"\t\t<!ELEMENT device_ref EMPTY>\n"
+		"\t\t\t<!ATTLIST device_ref tag CDATA #REQUIRED>\n"
 		"\t\t\t<!ATTLIST device_ref name CDATA #REQUIRED>\n"
 		"\t\t<!ELEMENT sample EMPTY>\n"
 		"\t\t\t<!ATTLIST sample name CDATA #REQUIRED>\n"
@@ -246,7 +247,6 @@ constexpr char f_dtd_string[] =
 		"\t\t\t\t<!ATTLIST control type CDATA #REQUIRED>\n"
 		"\t\t\t\t<!ATTLIST control player CDATA #IMPLIED>\n"
 		"\t\t\t\t<!ATTLIST control buttons CDATA #IMPLIED>\n"
-		"\t\t\t\t<!ATTLIST control reqbuttons CDATA #IMPLIED>\n"
 		"\t\t\t\t<!ATTLIST control minimum CDATA #IMPLIED>\n"
 		"\t\t\t\t<!ATTLIST control maximum CDATA #IMPLIED>\n"
 		"\t\t\t\t<!ATTLIST control sensitivity CDATA #IMPLIED>\n"
@@ -1011,7 +1011,7 @@ void output_device_refs(std::ostream &out, device_t &root)
 {
 	for (device_t &device : device_enumerator(root))
 		if (&device != &root)
-			util::stream_format(out, "\t\t<device_ref name=\"%s\"/>\n", util::xml::normalize_string(device.shortname()));
+			util::stream_format(out, "\t\t<device_ref tag=\"%s\" name=\"%s\"/>\n", util::xml::normalize_string(device.tag()), util::xml::normalize_string(device.shortname()));
 }
 
 
@@ -1284,23 +1284,16 @@ void output_chips(std::ostream &out, device_t &device, const char *root_tag)
 void output_display(std::ostream &out, device_t &device, machine_flags::type const *flags, const char *root_tag)
 {
 	// iterate over screens
-	for (const screen_device &screendev : screen_device_enumerator(device))
+	for (const device_video_output_interface &screendev : video_output_interface_enumerator(device))
 	{
-		if (strcmp(screendev.tag(), device.tag()))
+		if (strcmp(screendev.device().tag(), device.tag()))
 		{
-			std::string newtag(screendev.tag()), oldtag(":");
+			std::string newtag(screendev.device().tag()), oldtag(":");
 			newtag = newtag.substr(newtag.find(oldtag.append(root_tag)) + oldtag.length());
 
 			util::stream_format(out, "\t\t<display tag=\"%s\"", util::xml::normalize_string(newtag));
 
-			switch (screendev.screen_type())
-			{
-				case SCREEN_TYPE_RASTER:    out << " type=\"raster\"";  break;
-				case SCREEN_TYPE_VECTOR:    out << " type=\"vector\"";  break;
-				case SCREEN_TYPE_LCD:       out << " type=\"lcd\"";     break;
-				case SCREEN_TYPE_SVG:       out << " type=\"svg\"";     break;
-				default:                    out << " type=\"unknown\""; break;
-			}
+			out << " type=\"" << screendev.output_type_name() << '"';
 
 			// output the orientation as a string
 			switch (screendev.orientation())
@@ -1332,7 +1325,7 @@ void output_display(std::ostream &out, device_t &device, machine_flags::type con
 			}
 
 			// output width and height only for games that are not vector
-			if (screendev.screen_type() != SCREEN_TYPE_VECTOR)
+			if (!screendev.is_vector())
 			{
 				const rectangle &visarea = screendev.visible_area();
 				util::stream_format(out, " width=\"%d\"", visarea.width());
@@ -1340,21 +1333,22 @@ void output_display(std::ostream &out, device_t &device, machine_flags::type con
 			}
 
 			// output refresh rate
-			util::stream_format(out, " refresh=\"%f\"", ATTOSECONDS_TO_HZ(screendev.refresh_attoseconds()));
+			util::stream_format(out, " refresh=\"%f\"", screendev.frame_period().as_hz());
 
 			// output raw video parameters only for games that are not vector
 			// and had raw parameters specified
-			if (screendev.screen_type() != SCREEN_TYPE_VECTOR && !screendev.oldstyle_vblank_supplied())
+			const screen_device *output_as_screen = dynamic_cast<const screen_device *>(&screendev);
+			if (output_as_screen && !output_as_screen->oldstyle_vblank_supplied())
 			{
-				int pixclock = screendev.width() * screendev.height() * ATTOSECONDS_TO_HZ(screendev.refresh_attoseconds());
+				int pixclock = output_as_screen->width() * output_as_screen->height() * output_as_screen->frame_period().as_hz();
 
 				util::stream_format(out, " pixclock=\"%d\"", pixclock);
-				util::stream_format(out, " htotal=\"%d\"", screendev.width());
-				util::stream_format(out, " hbend=\"%d\"", screendev.visible_area().min_x);
-				util::stream_format(out, " hbstart=\"%d\"", screendev.visible_area().max_x+1);
-				util::stream_format(out, " vtotal=\"%d\"", screendev.height());
-				util::stream_format(out, " vbend=\"%d\"", screendev.visible_area().min_y);
-				util::stream_format(out, " vbstart=\"%d\"", screendev.visible_area().max_y+1);
+				util::stream_format(out, " htotal=\"%d\"", output_as_screen->width());
+				util::stream_format(out, " hbend=\"%d\"", output_as_screen->visible_area().min_x);
+				util::stream_format(out, " hbstart=\"%d\"", output_as_screen->visible_area().max_x+1);
+				util::stream_format(out, " vtotal=\"%d\"", output_as_screen->height());
+				util::stream_format(out, " vbend=\"%d\"", output_as_screen->visible_area().min_y);
+				util::stream_format(out, " vbstart=\"%d\"", output_as_screen->visible_area().max_y+1);
 			}
 			out << " />\n";
 		}
@@ -1437,26 +1431,13 @@ void output_input(std::ostream &out, const ioport_list &portlist)
 		CTRL_COUNT
 	};
 
-	enum
-	{
-		CTRL_P1,
-		CTRL_P2,
-		CTRL_P3,
-		CTRL_P4,
-		CTRL_P5,
-		CTRL_P6,
-		CTRL_P7,
-		CTRL_P8,
-		CTRL_P9,
-		CTRL_P10,
-		CTRL_PCOUNT
-	};
+	constexpr unsigned CTRL_PCOUNT = 10;
 
 	// directions
-	const uint8_t DIR_UP = 0x01;
-	const uint8_t DIR_DOWN = 0x02;
-	const uint8_t DIR_LEFT = 0x04;
-	const uint8_t DIR_RIGHT = 0x08;
+	constexpr uint8_t DIR_UP = 0x01;
+	constexpr uint8_t DIR_DOWN = 0x02;
+	constexpr uint8_t DIR_LEFT = 0x04;
+	constexpr uint8_t DIR_RIGHT = 0x08;
 
 	// initialize the list of control types
 	struct
@@ -1464,7 +1445,6 @@ void output_input(std::ostream &out, const ioport_list &portlist)
 		const char *    type;           // general type of input
 		int             player;         // player which the input belongs to
 		int             nbuttons;       // total number of buttons
-		int             reqbuttons;     // total number of non-optional buttons
 		uint32_t        maxbuttons;     // max index of buttons (using IPT_BUTTONn) [probably to be removed soonish]
 		int             ways;           // directions for joystick
 		bool            analog;         // is analog input?
@@ -1687,8 +1667,6 @@ void output_input(std::ostream &out, const ioport_list &portlist)
 				}
 				control_info[field.player() * CTRL_COUNT + ctrl_type].maxbuttons = std::max(control_info[field.player() * CTRL_COUNT + ctrl_type].maxbuttons, field.type() - IPT_BUTTON1 + 1);
 				control_info[field.player() * CTRL_COUNT + ctrl_type].nbuttons++;
-				if (!field.optional())
-					control_info[field.player() * CTRL_COUNT + ctrl_type].reqbuttons++;
 				break;
 
 			// track maximum coin index
@@ -1713,8 +1691,6 @@ void output_input(std::ostream &out, const ioport_list &portlist)
 				control_info[field.player() * CTRL_COUNT + ctrl_type].type = "keypad";
 				control_info[field.player() * CTRL_COUNT + ctrl_type].player = field.player() + 1;
 				control_info[field.player() * CTRL_COUNT + ctrl_type].nbuttons++;
-				if (!field.optional())
-					control_info[field.player() * CTRL_COUNT + ctrl_type].reqbuttons++;
 				break;
 
 			case IPT_KEYBOARD:
@@ -1722,8 +1698,6 @@ void output_input(std::ostream &out, const ioport_list &portlist)
 				control_info[field.player() * CTRL_COUNT + ctrl_type].type = "keyboard";
 				control_info[field.player() * CTRL_COUNT + ctrl_type].player = field.player() + 1;
 				control_info[field.player() * CTRL_COUNT + ctrl_type].nbuttons++;
-				if (!field.optional())
-					control_info[field.player() * CTRL_COUNT + ctrl_type].reqbuttons++;
 				break;
 
 			// additional types
@@ -1742,8 +1716,6 @@ void output_input(std::ostream &out, const ioport_list &portlist)
 					control_info[field.player() * CTRL_COUNT + ctrl_type].type = "mahjong";
 					control_info[field.player() * CTRL_COUNT + ctrl_type].player = field.player() + 1;
 					control_info[field.player() * CTRL_COUNT + ctrl_type].nbuttons++;
-					if (!field.optional())
-						control_info[field.player() * CTRL_COUNT + ctrl_type].reqbuttons++;
 				}
 				else if (field.type() > IPT_HANAFUDA_FIRST && field.type() < IPT_HANAFUDA_LAST)
 				{
@@ -1751,8 +1723,6 @@ void output_input(std::ostream &out, const ioport_list &portlist)
 					control_info[field.player() * CTRL_COUNT + ctrl_type].type = "hanafuda";
 					control_info[field.player() * CTRL_COUNT + ctrl_type].player = field.player() + 1;
 					control_info[field.player() * CTRL_COUNT + ctrl_type].nbuttons++;
-					if (!field.optional())
-						control_info[field.player() * CTRL_COUNT + ctrl_type].reqbuttons++;
 				}
 				else if (field.type() > IPT_GAMBLING_FIRST && field.type() < IPT_GAMBLING_LAST)
 				{
@@ -1760,8 +1730,6 @@ void output_input(std::ostream &out, const ioport_list &portlist)
 					control_info[field.player() * CTRL_COUNT + ctrl_type].type = "gambling";
 					control_info[field.player() * CTRL_COUNT + ctrl_type].player = field.player() + 1;
 					control_info[field.player() * CTRL_COUNT + ctrl_type].nbuttons++;
-					if (!field.optional())
-						control_info[field.player() * CTRL_COUNT + ctrl_type].reqbuttons++;
 				}
 				break;
 			}
@@ -1786,7 +1754,7 @@ void output_input(std::ostream &out, const ioport_list &portlist)
 	// Clean-up those entries, if any, where buttons were defined in a separate port than the actual controller they belong to.
 	// This is quite often the case, especially for arcades where controls can be easily mapped to separate input ports on PCB.
 	// If such situation would only happen for joystick, it would be possible to work it around by initializing differently
-	// ctrl_type above, but it is quite common among analog inputs as well (for instance, this is the tipical situation
+	// ctrl_type above, but it is quite common among analog inputs as well (for instance, this is the typical situation
 	// for lightguns) and therefore we really need this separate loop.
 	for (int i = 0; i < CTRL_PCOUNT; i++)
 	{
@@ -1795,7 +1763,6 @@ void output_input(std::ostream &out, const ioport_list &portlist)
 			if (control_info[i * CTRL_COUNT].type != nullptr && control_info[i * CTRL_COUNT + j].type != nullptr && !fix_done)
 			{
 				control_info[i * CTRL_COUNT + j].nbuttons += control_info[i * CTRL_COUNT].nbuttons;
-				control_info[i * CTRL_COUNT + j].reqbuttons += control_info[i * CTRL_COUNT].reqbuttons;
 				control_info[i * CTRL_COUNT + j].maxbuttons = std::max(control_info[i * CTRL_COUNT + j].maxbuttons, control_info[i * CTRL_COUNT].maxbuttons);
 
 				memset(&control_info[i * CTRL_COUNT], 0, sizeof(control_info[0]));
@@ -1828,11 +1795,7 @@ void output_input(std::ostream &out, const ioport_list &portlist)
 				if (nplayer > 1)
 					util::stream_format(out, " player=\"%d\"", elem.player);
 				if (elem.nbuttons > 0)
-				{
 					util::stream_format(out, " buttons=\"%u\"", strcmp(elem.type, "stick") ? elem.nbuttons : elem.maxbuttons);
-					if (elem.reqbuttons < elem.nbuttons)
-						util::stream_format(out, " reqbuttons=\"%d\"", elem.reqbuttons);
-				}
 				if (elem.min != 0 || elem.max != 0)
 					util::stream_format(out, " minimum=\"%d\" maximum=\"%d\"", elem.min, elem.max);
 				if (elem.sensitivity != 0)
@@ -1854,11 +1817,7 @@ void output_input(std::ostream &out, const ioport_list &portlist)
 				if (nplayer > 1)
 					util::stream_format(out, " player=\"%d\"", elem.player);
 				if (elem.nbuttons > 0)
-				{
 					util::stream_format(out, " buttons=\"%u\"", strcmp(elem.type, "joy") ? elem.nbuttons : elem.maxbuttons);
-					if (elem.reqbuttons < elem.nbuttons)
-						util::stream_format(out, " reqbuttons=\"%d\"", elem.reqbuttons);
-				}
 				for (int lp = 0; lp < 3 && elem.helper[lp] != 0; lp++)
 				{
 					const char *plural = (lp==2) ? "3" : (lp==1) ? "2" : "";
@@ -2195,7 +2154,7 @@ void output_slots(std::ostream &out, machine_config &config, device_t &device, c
 					{
 						util::stream_format(out, "\t\t\t<slotoption name=\"%s\"", normalize_string(option.second->name()));
 						util::stream_format(out, " devname=\"%s\"", normalize_string(dev->shortname()));
-						if (slot.default_option() && !strcmp(slot.default_option(), option.second->name()))
+						if (slot.default_option() && (slot.default_option() == option.second->name()))
 							out << " default=\"yes\"";
 						out << "/>\n";
 					}

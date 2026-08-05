@@ -6,6 +6,7 @@
 #pragma once
 
 #include "cpu/m6805/m68hc05e1.h"
+#include "machine/macseconds.h"
 
 /// \brief Base class for Apple Cuda devices.
 ///
@@ -13,7 +14,7 @@
 /// on-board RAM and ROM plus several GPIO pins.  Cuda handles
 /// simple power management, the Apple Desktop Bus, I2C, real-time
 /// clock, and parameter RAM.
-class cuda_device :  public device_t, public device_nvram_interface
+class cuda_device :  public device_t, public device_nvram_interface, public macseconds_interface
 {
 public:
 	// construction/destruction
@@ -23,6 +24,8 @@ public:
 	virtual void nvram_default() override;
 	virtual bool nvram_read(util::read_stream &file) override;
 	virtual bool nvram_write(util::write_stream &file) override;
+
+	void zero_default_pram() { m_zero_default_pram = true; }
 
 	// VIA interface routines
 	u8 get_treq() { return m_treq; }
@@ -77,6 +80,7 @@ private:
 	s32 m_adb_dtime;
 	u8 m_disk_pram[0x100]{};
 	bool m_pram_loaded;
+	bool m_zero_default_pram;
 };
 
 class cuda_2xx_device : public cuda_device

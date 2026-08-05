@@ -292,7 +292,7 @@ uint32_t sbasketb_state::screen_update(screen_device &screen, bitmap_ind16 &bitm
 
 void sbasketb_state::sh_irqtrigger_w(uint8_t data)
 {
-	m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff); // Z80
+	m_audiocpu->set_input_line(0, HOLD_LINE); // Z80 IM1
 }
 
 template <uint8_t Which>
@@ -367,7 +367,7 @@ static INPUT_PORTS_START( sbasketb )
 	PORT_DIPNAME( 0x04, 0x00, DEF_STR( Cabinet ) )     PORT_DIPLOCATION( "SW2:3" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Upright ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( Cocktail ) )
-	PORT_DIPNAME( 0x08, 0x08, "Starting Score" )       PORT_DIPLOCATION( "SW2:4" )
+	PORT_DIPNAME( 0x08, 0x00, "Starting Score" )       PORT_DIPLOCATION( "SW2:4" )
 	PORT_DIPSETTING(    0x08, "70-78" )
 	PORT_DIPSETTING(    0x00, "100-115" )
 	PORT_DIPNAME( 0x10, 0x00, "Ranking" )              PORT_DIPLOCATION( "SW2:5" )
@@ -418,7 +418,7 @@ void sbasketb_state::sbasketb(machine_config &config)
 	WATCHDOG_TIMER(config, "watchdog");
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	m_screen->set_size(32*8, 32*8);
@@ -435,7 +435,7 @@ void sbasketb_state::sbasketb(machine_config &config)
 
 	GENERIC_LATCH_8(config, "soundlatch");
 
-	TRACKFLD_AUDIO(config, "soundbrd", 0, m_audiocpu, m_vlm);
+	TRACKFLD_AUDIO(config, "soundbrd", m_audiocpu, m_vlm);
 
 	DAC_8BIT_R2R(config, "dac", 0).add_route(ALL_OUTPUTS, "speaker", 0.4); // unknown DAC
 

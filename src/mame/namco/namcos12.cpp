@@ -18,6 +18,7 @@
     - sws2001 crashes at random times in-game, and always after the opening video. You can spam insert coin and start to get in-game.
     - sws2000 also crashes after opening video
     - toukon3 has garbage graphics
+    - kartduel has unemulated link support
 
 Namco System 12 - Arcade Playstation-based Hardware
 ===================================================
@@ -1055,6 +1056,8 @@ The lever must be wired to analog port 0 (pin B22 parts side) of the Namco 48-wa
 #include "screen.h"
 #include "speaker.h"
 
+#include "endianness.h"
+
 #include "technodr.lh"
 
 #define LOG_BANK     (1U << 1)
@@ -1149,7 +1152,7 @@ public:
 		m_maincpu->set_addrmap(AS_PROGRAM, &namcos12_state::maincpu_map);
 		m_maincpu->subdevice<psxdma_device>("dma")->install_read_handler(5, psxdma_device::read_delegate(&namcos12_state::namcos12_rom_read, this));
 
-		SCREEN(config, "screen", SCREEN_TYPE_RASTER).screen_vblank().set(FUNC(namcos12_state::namcos12_sub_irq));
+		SCREEN(config, "screen").screen_vblank().set(FUNC(namcos12_state::namcos12_sub_irq));
 
 		/* basic machine hardware */
 		H83002(config, m_sub, 16934400); // frequency based on research (superctr)
@@ -1183,12 +1186,12 @@ public:
 		m_sub->write_sci_clk<1>().set(m_rtc, FUNC(rtc4543_device::clk_w)).invert();
 		m_sub->write_sci_clk<1>().append(m_settings, FUNC(namco_settings_device::clk_w));
 
-		NAMCO_SETTINGS(config, m_settings, 0);
+		NAMCO_SETTINGS(config, m_settings);
 
 		RTC4543(config, m_rtc, XTAL(32'768));
 		m_rtc->data_cb().set(m_sub, FUNC(h8_device::sci_rx_w<1>));
 
-		AT28C16(config, "at28c16", 0);
+		AT28C16(config, "at28c16");
 
 		/* sound hardware */
 		SPEAKER(config, "speaker", 2).front();
@@ -1622,9 +1625,6 @@ protected:
 	{
 		namcos12_state::driver_start();
 
-		m_start_lamp.resolve();
-		m_gun_recoil.resolve();
-
 		/* HACK: patch out wait for dma 5 to complete */
 		*((uint32_t *)(m_mainrom->base() + 0x331c4)) = 0;
 	}
@@ -1766,13 +1766,6 @@ public:
 	}
 
 protected:
-	virtual void driver_start() override ATTR_COLD
-	{
-		namcos12_state::driver_start();
-
-		m_led.resolve();
-	}
-
 	virtual void configure_jvs(machine_config &config, device_jvs_interface &io) override ATTR_COLD
 	{
 		namcos12_state::configure_jvs(config, io);
@@ -3096,7 +3089,7 @@ ROM_START( tekken3 )
 	ROM_LOAD16_BYTE( "tet1fl3u.13",       0x1800001, 0x200000, CRC(1917d993) SHA1(cabc44514a3e62a18a7f8f883603241447d6948b) )
 
 	ROM_REGION( 0x0080000, "sub", 0 )
-	ROM_LOAD16_WORD_SWAP( "tet1verd.11s", 0x0000000, 0x080000, CRC(b13d88a9) SHA1(944d35203bbb7155a296ff37daa426b42f8e2b6b) ) // No label but newer than tet1verb.11s
+	ROM_LOAD16_WORD_SWAP( "tet1vere.11s", 0x0000000, 0x080000, CRC(c92b98d1) SHA1(8ae6fba8c5b6b9a2ab9541eac8553b282f35750d) ) // No label but newer then tet1verb.11s, internally dated 1997-05-28
 
 	ROM_REGION( 0x1000000, "c352", 0 )
 	ROM_LOAD( "tet1wave0.5",              0x0000000, 0x400000, CRC(77ba7975) SHA1(fe9434dcf0fb232c85efaaae1b4b13d36099620a) )
@@ -3119,7 +3112,7 @@ ROM_START( tekken3ja )
 	ROM_LOAD16_BYTE( "tet1verafl3u.13",   0x1800001, 0x200000, CRC(32a2516b) SHA1(6f4e4fc1b11d17a867d3e7bdfdd351438390a5a2) ) // Specific to Ver A.
 
 	ROM_REGION( 0x0080000, "sub", 0 )
-	ROM_LOAD16_WORD_SWAP( "tet1vera.11s", 0x0000000, 0x080000, CRC(a74dfe7f) SHA1(854096a6f12ee9073fb1f38e41c8e6e0725a7521) ) // Specific to Ver A.
+	ROM_LOAD16_WORD_SWAP( "tet1vera.11s", 0x0000000, 0x080000, CRC(a74dfe7f) SHA1(854096a6f12ee9073fb1f38e41c8e6e0725a7521) ) // Specific to Ver A, internally dated 1997-03-08
 
 	ROM_REGION( 0x1000000, "c352", 0 )
 	ROM_LOAD( "tet1wave0.5",              0x0000000, 0x400000, CRC(77ba7975) SHA1(fe9434dcf0fb232c85efaaae1b4b13d36099620a) )
@@ -3142,7 +3135,7 @@ ROM_START( tekken3jd )
 	ROM_LOAD16_BYTE( "tet1fl3u.13",       0x1800001, 0x200000, CRC(1917d993) SHA1(cabc44514a3e62a18a7f8f883603241447d6948b) )
 
 	ROM_REGION( 0x0080000, "sub", 0 )
-	ROM_LOAD16_WORD_SWAP( "tet1verd.11s", 0x0000000, 0x080000, CRC(b13d88a9) SHA1(944d35203bbb7155a296ff37daa426b42f8e2b6b) ) // No label but newer than tet1verb.11s
+	ROM_LOAD16_WORD_SWAP( "tet1verb.11s", 0x0000000, 0x080000, CRC(b13d88a9) SHA1(944d35203bbb7155a296ff37daa426b42f8e2b6b) ) // No label but verified for up to VER.D sets, internally dated 1997-03-17
 
 	ROM_REGION( 0x1000000, "c352", 0 )
 	ROM_LOAD( "tet1wave0.5",              0x0000000, 0x400000, CRC(77ba7975) SHA1(fe9434dcf0fb232c85efaaae1b4b13d36099620a) )
@@ -3165,7 +3158,7 @@ ROM_START( tekken3je1 )
 	ROM_LOAD16_BYTE( "tet1fl3u.13",       0x1800001, 0x200000, CRC(1917d993) SHA1(cabc44514a3e62a18a7f8f883603241447d6948b) )
 
 	ROM_REGION( 0x0080000, "sub", 0 )
-	ROM_LOAD16_WORD_SWAP( "tet1verd.11s", 0x0000000, 0x080000, CRC(b13d88a9) SHA1(944d35203bbb7155a296ff37daa426b42f8e2b6b) ) // No label but newer than tet1verb.11s
+	ROM_LOAD16_WORD_SWAP( "tet1vere.11s", 0x0000000, 0x080000, CRC(c92b98d1) SHA1(8ae6fba8c5b6b9a2ab9541eac8553b282f35750d) ) // No label but newer then tet1verb.11s, internally dated 1997-05-28
 
 	ROM_REGION( 0x1000000, "c352", 0 )
 	ROM_LOAD( "tet1wave0.5",              0x0000000, 0x400000, CRC(77ba7975) SHA1(fe9434dcf0fb232c85efaaae1b4b13d36099620a) )
@@ -3188,7 +3181,7 @@ ROM_START( tekken3ua )
 	ROM_LOAD16_BYTE( "tet1verafl3u.13",   0x1800001, 0x200000, CRC(32a2516b) SHA1(6f4e4fc1b11d17a867d3e7bdfdd351438390a5a2) ) // Specific to Ver A.
 
 	ROM_REGION( 0x0080000, "sub", 0 )
-	ROM_LOAD16_WORD_SWAP( "tet1vera.11s", 0x0000000, 0x080000, CRC(a74dfe7f) SHA1(854096a6f12ee9073fb1f38e41c8e6e0725a7521) ) // Specific to Ver A.
+	ROM_LOAD16_WORD_SWAP( "tet1vera.11s", 0x0000000, 0x080000, CRC(a74dfe7f) SHA1(854096a6f12ee9073fb1f38e41c8e6e0725a7521) ) // Specific to Ver A, internally dated 1997-03-08
 
 	ROM_REGION( 0x1000000, "c352", 0 )
 	ROM_LOAD( "tet1wave0.5",              0x0000000, 0x400000, CRC(77ba7975) SHA1(fe9434dcf0fb232c85efaaae1b4b13d36099620a) )
@@ -3211,7 +3204,7 @@ ROM_START( tekken3ud )
 	ROM_LOAD16_BYTE( "tet1fl3u.13",       0x1800001, 0x200000, CRC(1917d993) SHA1(cabc44514a3e62a18a7f8f883603241447d6948b) )
 
 	ROM_REGION( 0x0080000, "sub", 0 )
-	ROM_LOAD16_WORD_SWAP( "tet1verd.11s", 0x0000000, 0x080000, CRC(b13d88a9) SHA1(944d35203bbb7155a296ff37daa426b42f8e2b6b) ) // No label but newer than tet1verb.11s
+	ROM_LOAD16_WORD_SWAP( "tet1verb.11s", 0x0000000, 0x080000, CRC(b13d88a9) SHA1(944d35203bbb7155a296ff37daa426b42f8e2b6b) ) // No label but verified for up to VER.D sets, internally dated 1997-03-17
 
 	ROM_REGION( 0x1000000, "c352", 0 )
 	ROM_LOAD( "tet1wave0.5",              0x0000000, 0x400000, CRC(77ba7975) SHA1(fe9434dcf0fb232c85efaaae1b4b13d36099620a) )
@@ -3234,7 +3227,7 @@ ROM_START( tekken3a )
 	ROM_LOAD16_BYTE( "tet1verafl3u.13",   0x1800001, 0x200000, CRC(32a2516b) SHA1(6f4e4fc1b11d17a867d3e7bdfdd351438390a5a2) ) // Specific to Ver A.
 
 	ROM_REGION( 0x0080000, "sub", 0 )
-	ROM_LOAD16_WORD_SWAP( "tet1vera.11s", 0x0000000, 0x080000, CRC(a74dfe7f) SHA1(854096a6f12ee9073fb1f38e41c8e6e0725a7521) ) // Specific to Ver A.
+	ROM_LOAD16_WORD_SWAP( "tet1vera.11s", 0x0000000, 0x080000, CRC(a74dfe7f) SHA1(854096a6f12ee9073fb1f38e41c8e6e0725a7521) ) // Specific to Ver A, internally dated 1997-03-08
 
 	ROM_REGION( 0x1000000, "c352", 0 )
 	ROM_LOAD( "tet1wave0.5",              0x0000000, 0x400000, CRC(77ba7975) SHA1(fe9434dcf0fb232c85efaaae1b4b13d36099620a) )
@@ -3257,7 +3250,7 @@ ROM_START( tekken3b )
 	ROM_LOAD16_BYTE( "tet1fl3u.13",       0x1800001, 0x200000, CRC(1917d993) SHA1(cabc44514a3e62a18a7f8f883603241447d6948b) )
 
 	ROM_REGION( 0x0080000, "sub", 0 )
-	ROM_LOAD16_WORD_SWAP( "tet1verb.11s", 0x0000000, 0x080000, CRC(c92b98d1) SHA1(8ae6fba8c5b6b9a2ab9541eac8553b282f35750d) ) // No label but different than tet1vera.11s
+	ROM_LOAD16_WORD_SWAP( "tet1verb.11s", 0x0000000, 0x080000, CRC(b13d88a9) SHA1(944d35203bbb7155a296ff37daa426b42f8e2b6b) ) // No label but verified for up to VER.D sets, internally dated 1997-03-17
 
 	ROM_REGION( 0x1000000, "c352", 0 )
 	ROM_LOAD( "tet1wave0.5",              0x0000000, 0x400000, CRC(77ba7975) SHA1(fe9434dcf0fb232c85efaaae1b4b13d36099620a) )
@@ -3280,7 +3273,7 @@ ROM_START( tekken3c )
 	ROM_LOAD16_BYTE( "tet1fl3u.13",       0x1800001, 0x200000, CRC(1917d993) SHA1(cabc44514a3e62a18a7f8f883603241447d6948b) )
 
 	ROM_REGION( 0x0080000, "sub", 0 )
-	ROM_LOAD16_WORD_SWAP( "tet1verb.11s", 0x0000000, 0x080000, CRC(c92b98d1) SHA1(8ae6fba8c5b6b9a2ab9541eac8553b282f35750d) ) // No label but different than tet1vera.11s
+	ROM_LOAD16_WORD_SWAP( "tet1verb.11s", 0x0000000, 0x080000, CRC(b13d88a9) SHA1(944d35203bbb7155a296ff37daa426b42f8e2b6b) ) // No label but verified for up to VER.D sets, internally dated 1997-03-17
 
 	ROM_REGION( 0x1000000, "c352", 0 )
 	ROM_LOAD( "tet1wave0.5",              0x0000000, 0x400000, CRC(77ba7975) SHA1(fe9434dcf0fb232c85efaaae1b4b13d36099620a) )
@@ -3303,7 +3296,7 @@ ROM_START( tekken3d )
 	ROM_LOAD16_BYTE( "tet1fl3u.13",       0x1800001, 0x200000, CRC(1917d993) SHA1(cabc44514a3e62a18a7f8f883603241447d6948b) )
 
 	ROM_REGION( 0x0080000, "sub", 0 )
-	ROM_LOAD16_WORD_SWAP( "tet1verd.11s", 0x0000000, 0x080000, CRC(b13d88a9) SHA1(944d35203bbb7155a296ff37daa426b42f8e2b6b) ) // No label but newer than tet1verb.11s
+	ROM_LOAD16_WORD_SWAP( "tet1verb.11s", 0x0000000, 0x080000, CRC(b13d88a9) SHA1(944d35203bbb7155a296ff37daa426b42f8e2b6b) ) // No label but verified for up to VER.D sets, internally dated 1997-03-17
 
 	ROM_REGION( 0x1000000, "c352", 0 )
 	ROM_LOAD( "tet1wave0.5",              0x0000000, 0x400000, CRC(77ba7975) SHA1(fe9434dcf0fb232c85efaaae1b4b13d36099620a) )
@@ -3667,7 +3660,7 @@ GAME( 2000, sws2000,    0,        coh700b,  namcos12, namcos12_state,         em
 // truckk can't be a Japanese set despite the game title still being in Japanese.  The option for in-game Japanese text is disabled in this set, and it has a Parental Advisory screen usually associated with US releases
 // TKK1 is probably the Japanese release, although a TKK1 CD contains identical data to a TKK2 CD, so any difference is in the ROM data rather than the CD
 GAME( 2000, truckk,     0,        truckk,   truckk,   truckk_state,           empty_init, ROT0, "Metro / Namco",   "Truck Kyosokyoku (US?, TKK2/VER.A)", MACHINE_IMPERFECT_SOUND ) /* KC056 */
-GAME( 2000, kartduel,   0,        kartduel, kartduel, kartduel_state,         empty_init, ROT0, "Gaps / Namco",    "Kart Duel (World, KTD2/VER.A)", 0 ) /* KC057 */
-GAME( 2000, kartduelja, kartduel, kartduel, kartduel, kartduel_state,         empty_init, ROT0, "Gaps / Namco",    "Kart Duel (Japan, KTD1/VER.A)", 0 ) /* KC057 */
+GAME( 2000, kartduel,   0,        kartduel, kartduel, kartduel_state,         empty_init, ROT0, "Gaps / Namco",    "Kart Duel (World, KTD2/VER.A)", MACHINE_NODEVICE_LAN ) /* KC057 */
+GAME( 2000, kartduelja, kartduel, kartduel, kartduel, kartduel_state,         empty_init, ROT0, "Gaps / Namco",    "Kart Duel (Japan, KTD1/VER.A)", MACHINE_NODEVICE_LAN ) /* KC057 */
 GAME( 2000, g13knd,     0,        golgo13,  golgo13,  golgo13_state,          empty_init, ROT0, "Eighting / Raizing / Namco", "Golgo 13 Kiseki no Dandou (Japan, GLS1/VER.A)", 0 ) /* KC059 */
 GAME( 2001, sws2001,    0,        coh716,   namcos12, namcos12_altbank_state, empty_init, ROT0, "Namco",           "Super World Stadium 2001 (Japan, SS11/VER.A)", MACHINE_NOT_WORKING ) /* KC061 */

@@ -188,7 +188,6 @@ void junofrst_state::blitter_w(offs_t offset, uint8_t data)
 				src++;
 
 				/* if there is a source pixel either copy the pixel or clear the pixel depending on the copy flag */
-
 				if (data)
 				{
 					if (!copy)
@@ -216,7 +215,6 @@ uint8_t junofrst_state::portA_r()
 	int const timer = (m_audiocpu->total_cycles() / (1024 / 2)) & 0x0f;
 
 	/* low three bits come from the 8039 */
-
 	return (timer << 4) | m_i8039_status;
 }
 
@@ -243,7 +241,7 @@ void junofrst_state::sh_irqtrigger_w(uint8_t data)
 	if (m_last_irq == 0 && data == 1)
 	{
 		/* setting bit 0 low then high triggers IRQ on the sound CPU */
-		m_audiocpu->set_input_line_and_vector(0, HOLD_LINE, 0xff); // Z80
+		m_audiocpu->set_input_line(0, HOLD_LINE); // Z80 IM1
 	}
 	m_last_irq = data;
 }
@@ -412,7 +410,7 @@ void junofrst_state::junofrst(machine_config &config)
 	WATCHDOG_TIMER(config, "watchdog");
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(GALAXIAN_PIXEL_CLOCK, GALAXIAN_HTOTAL, GALAXIAN_HBEND, GALAXIAN_HBSTART, GALAXIAN_VTOTAL, GALAXIAN_VBEND, GALAXIAN_VBSTART);
 	PALETTE(config, m_palette).set_format(1, tutankhm_state::raw_to_rgb_func, 16);
 

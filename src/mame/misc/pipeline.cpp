@@ -297,7 +297,7 @@ static INPUT_PORTS_START( pipeline )
 	PORT_START("DSW1")
 	// bits 0 to 6 are tested from less to most significant - code at 0x00dd
 	PORT_DIPNAME( 0x7f, 0x00, DEF_STR( Coinage ) )
-	PORT_DIPSETTING(    0x07, "10 Coins/1 Credit" )
+	PORT_DIPSETTING(    0x07, DEF_STR( 10C_1C ) )
 	PORT_DIPSETTING(    0x03, DEF_STR( 5C_1C ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( 2C_1C ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 1C_1C ) )
@@ -414,7 +414,7 @@ void pipeline_state::pipeline(machine_config &config)
 	ppi2.out_pc_callback().set_membank("soundbank").bit(7);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(512, 512);

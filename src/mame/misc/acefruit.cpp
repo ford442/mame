@@ -50,7 +50,6 @@ public:
 	template <int Mask> int starspnr_payout_r();
 
 protected:
-	virtual void machine_start() override ATTR_COLD;
 	virtual void video_start() override ATTR_COLD;
 
 	TIMER_CALLBACK_MEMBER(refresh_tick);
@@ -114,12 +113,6 @@ TIMER_CALLBACK_MEMBER(acefruit_state::refresh_tick)
 	const int next_vpos = ((vpos / 8) + 1) * 8;
 
 	m_refresh_timer->adjust(m_screen->time_until_pos(next_vpos));
-}
-
-void acefruit_state::machine_start()
-{
-	m_lamps.resolve();
-	m_solenoids.resolve();
 }
 
 void acefruit_state::video_start()
@@ -540,13 +533,13 @@ static INPUT_PORTS_START( starspnr )
 	PORT_DIPNAME( 0x03, 0x00, DEF_STR( Coin_A ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( 1C_4C ) )
-	PORT_DIPSETTING(    0x02, "1 Coin/10 Credits" )
-	PORT_DIPSETTING(    0x03, "1 Coin/25 Credits" )
+	PORT_DIPSETTING(    0x02, DEF_STR( 1C_10C ) )
+	PORT_DIPSETTING(    0x03, DEF_STR( 1C_25C ) )
 	PORT_DIPNAME( 0x0c, 0x00, DEF_STR( Coin_B ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( 1C_1C ) )
 	PORT_DIPSETTING(    0x04, DEF_STR( 1C_4C ) )
-	PORT_DIPSETTING(    0x08, "1 Coin/10 Credits" )
-	PORT_DIPSETTING(    0x0c, "1 Coin/25 Credits" )
+	PORT_DIPSETTING(    0x08, DEF_STR( 1C_10C ) )
+	PORT_DIPSETTING(    0x0c, DEF_STR( 1C_25C ) )
 
 	PORT_START("PAYOUT")    // fake port to handle settings via multiple input ports
 	PORT_DIPNAME( 0x07, 0x07, "Payout %" )
@@ -614,7 +607,7 @@ void acefruit_state::acefruit(machine_config &config)
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_acefruit);
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500) /* not accurate */);
 	m_screen->set_size(512, 256);

@@ -505,7 +505,7 @@ static INPUT_PORTS_START( lvpoker )
 	PORT_DIPSETTING(    0x18, DEF_STR( 1C_4C ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( 1C_5C ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( 1C_6C ) )
-	PORT_DIPSETTING(    0x00, "1 Coin/10 Credits" )
+	PORT_DIPSETTING(    0x00, DEF_STR( 1C_10C ) )
 	PORT_DIPNAME( 0x40, 0x40, "Coin C (Service Switch)" )
 	PORT_DIPSETTING(    0x40, "1 Push/1 Credit" )
 	PORT_DIPSETTING(    0x00, "1 Push/10 Credits" )
@@ -583,7 +583,7 @@ static INPUT_PORTS_START( ponttehk )
 	PORT_DIPSETTING(    0x18, DEF_STR( 1C_4C ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( 1C_5C ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( 1C_6C ) )
-	PORT_DIPSETTING(    0x00, "1 Coin/10 Credits" )
+	PORT_DIPSETTING(    0x00, DEF_STR( 1C_10C ) )
 	PORT_DIPNAME( 0x40, 0x40, "Coin C (Service Switch)" )
 	PORT_DIPSETTING(    0x40, "1 Push/1 Credit" )
 	PORT_DIPSETTING(    0x00, "1 Push/10 Credits" )
@@ -609,7 +609,7 @@ void lvcards_state::lvcards(machine_config &config)
 	m_maincpu->set_vblank_int("screen", FUNC(lvcards_state::irq0_line_hold));
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	screen.set_size(32*8, 32*8);

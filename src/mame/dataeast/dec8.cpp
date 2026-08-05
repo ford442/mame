@@ -43,6 +43,24 @@ TODO:
 - gondo 2nd coin doesn't work, probably due to hacked MCU ROM
 - ghostb coinage dipswitch
 - how does meikyuhbl circumvent the MCU? It won't boot in MAME if MCU is removed
+- weird NMI issue in ghostb: Before starting stage 2, it waits for vblank, then
+  enables NMI by writing to ghostb_bank_w, then stores the written value in RAM.
+  It fails to initialize stage 2 properly if NMI happens right after enabling
+  the NMI flip-flop (when it hasn't yet stored a copy the bank register value
+  in RAM), so it appears that it expects 1 more opcode, see:
+
+  88D5: LDA    $3803
+  88D8: ANDA   #$08  ; vblank flag
+  88DA: BNE    $88D5
+
+  88DC: LDA    #$B7
+  88DE: STA    $3840 ; ghostb_bank_w
+  88E1: STA    <$68  ; expects NMI after this opcode
+
+  Where does this delay come from? Is it a MAME 6809 timing bug with NMI edge
+  detection? Or a brief TTL delay and it works by luck? Either way, it looks
+  like a bug by Data East. Normally you'd store the local variable first,
+  then write to the register.
 
 ***************************************************************************/
 
@@ -52,7 +70,6 @@ TODO:
 #include "cpu/m6502/r65c02.h"
 #include "cpu/m6809/hd6309.h"
 #include "cpu/m6809/m6809.h"
-#include "sound/msm5205.h"
 #include "sound/ymopn.h"
 #include "sound/ymopl.h"
 
@@ -184,8 +201,12 @@ void ghostb_state::gondo_bank_w(u8 data)
 	if (!m_secclr)
 		m_maincpu->set_input_line(M6809_IRQ_LINE, CLEAR_LINE);
 
-	m_nmigate->in_w<0>(BIT(data, 1));
+	// it relies on 1 more opcode after enabling NMI (see TODO notes)
+	if (BIT(m_bank_data ^ data, 1))
+		m_nmi_timer->adjust(m_maincpu->minimum_quantum_time(), BIT(data, 1));
+
 	flip_screen_set(BIT(data, 3));
+	m_bank_data = data;
 }
 
 void ghostb_state::ghostb_bank_w(u8 data)
@@ -227,7 +248,8 @@ void csilver_state::adpcm_int(int state)
 
 u8 csilver_state::adpcm_reset_r()
 {
-	m_msm->reset_w(0);
+	if (!machine().side_effects_disabled())
+		m_msm->reset_w(0);
 	return 0;
 }
 
@@ -345,7 +367,7 @@ void lastmisn_state::shackled_map(address_map &map)
 	map(0x2000, 0x27ff).ram().w(FUNC(lastmisn_state::videoram_w));
 	map(0x2800, 0x2fff).ram().share("spriteram");
 	map(0x3000, 0x37ff).ram().share("share2");
-	map(0x3800, 0x3fff).rw(FUNC(lastmisn_state::bg_ram_r), FUNC(lastmisn_state::bg_ram_w)).share("bg_ram");
+	map(0x3800, 0x3fff).rw(FUNC(lastmisn_state::bg_ram_r), FUNC(lastmisn_state::bg_ram_w)).share(m_bg_ram);
 	map(0x4000, 0x7fff).bankr(m_mainbank);
 	map(0x8000, 0xffff).rom();
 }
@@ -381,9 +403,9 @@ void ghostb_state::ghostb_map(address_map &map)
 	map(0x0000, 0x0fff).ram();
 	map(0x1000, 0x17ff).ram();
 	map(0x1800, 0x1fff).ram().w(FUNC(ghostb_state::videoram_w)).share(m_videoram);
-	map(0x2000, 0x27ff).rw(m_tilegen[0], FUNC(deco_bac06_device::pf_data_8bit_r), FUNC(deco_bac06_device::pf_data_8bit_w));
+	map(0x2000, 0x27ff).rw(m_tilegen[0], FUNC(deco_bac06_device::vram8_r<false>), FUNC(deco_bac06_device::vram8_w<false>));
 	map(0x2800, 0x2bff).ram(); // colscroll? mirror?
-	map(0x2c00, 0x2fff).rw(m_tilegen[0], FUNC(deco_bac06_device::pf_rowscroll_8bit_r), FUNC(deco_bac06_device::pf_rowscroll_8bit_w));
+	map(0x2c00, 0x2fff).rw(m_tilegen[0], FUNC(deco_bac06_device::rowscroll8_r<false>), FUNC(deco_bac06_device::rowscroll8_w<false>));
 	map(0x3000, 0x37ff).ram().share("spriteram");
 	map(0x3800, 0x3800).portr("IN0");
 	map(0x3800, 0x3800).w(FUNC(ghostb_state::sound_w));
@@ -391,8 +413,8 @@ void ghostb_state::ghostb_map(address_map &map)
 	map(0x3802, 0x3802).portr("IN2");
 	map(0x3803, 0x3803).portr("DSW0");
 	map(0x3820, 0x3820).portr("DSW1");
-	map(0x3820, 0x3827).w(m_tilegen[0], FUNC(deco_bac06_device::pf_control0_8bit_w));
-	map(0x3830, 0x383f).rw(m_tilegen[0], FUNC(deco_bac06_device::pf_control1_8bit_r), FUNC(deco_bac06_device::pf_control1_8bit_w));
+	map(0x3820, 0x3827).w(m_tilegen[0], FUNC(deco_bac06_device::ctrlreg8_w));
+	map(0x3830, 0x383f).rw(m_tilegen[0], FUNC(deco_bac06_device::scrollreg8_r<false>), FUNC(deco_bac06_device::scrollreg8_w<false>));
 	map(0x3840, 0x3840).r(FUNC(ghostb_state::i8751_hi_r));
 	map(0x3840, 0x3840).w(FUNC(ghostb_state::ghostb_bank_w));
 	map(0x3860, 0x3860).r(FUNC(ghostb_state::i8751_lo_r));
@@ -406,7 +428,7 @@ void gondo_state::gondo_map(address_map &map)
 {
 	map(0x0000, 0x17ff).ram();
 	map(0x1800, 0x1fff).ram().w(FUNC(gondo_state::videoram_w)).share(m_videoram);
-	map(0x2000, 0x27ff).rw(FUNC(gondo_state::bg_ram_r), FUNC(gondo_state::bg_ram_w)).share("bg_ram");
+	map(0x2000, 0x27ff).rw(FUNC(gondo_state::bg_ram_r), FUNC(gondo_state::bg_ram_w)).share(m_bg_ram);
 	map(0x2800, 0x2bff).ram().w(m_palette, FUNC(deco_rmc3_device::write8)).share("palette");
 	map(0x2c00, 0x2fff).ram().w(m_palette, FUNC(deco_rmc3_device::write8_ext)).share("palette_ext");
 	map(0x3000, 0x37ff).ram().share("spriteram");
@@ -431,7 +453,7 @@ void ghostb_state::garyoret_map(address_map &map)
 {
 	map(0x0000, 0x17ff).ram();
 	map(0x1800, 0x1fff).ram().w(FUNC(ghostb_state::videoram_w)).share(m_videoram);
-	map(0x2000, 0x27ff).rw(FUNC(ghostb_state::bg_ram_r), FUNC(ghostb_state::bg_ram_w)).share("bg_ram");
+	map(0x2000, 0x27ff).rw(FUNC(ghostb_state::bg_ram_r), FUNC(ghostb_state::bg_ram_w)).share(m_bg_ram);
 	map(0x2800, 0x2bff).ram().w(m_palette, FUNC(deco_rmc3_device::write8)).share("palette");
 	map(0x2c00, 0x2fff).ram().w(m_palette, FUNC(deco_rmc3_device::write8_ext)).share("palette_ext");
 	map(0x3000, 0x37ff).ram().share("spriteram");
@@ -473,7 +495,7 @@ void csilver_state::main_map(address_map &map)
 	map(0x2000, 0x27ff).ram().w(FUNC(csilver_state::videoram_w));
 	map(0x2800, 0x2fff).ram().share("spriteram");
 	map(0x3000, 0x37ff).ram().share("share2");
-	map(0x3800, 0x3fff).rw(FUNC(csilver_state::bg_ram_r), FUNC(csilver_state::bg_ram_w)).share("bg_ram");
+	map(0x3800, 0x3fff).rw(FUNC(csilver_state::bg_ram_r), FUNC(csilver_state::bg_ram_w)).share(m_bg_ram);
 	map(0x4000, 0x7fff).bankr(m_mainbank);
 	map(0x8000, 0xffff).rom();
 }
@@ -503,7 +525,7 @@ void oscar_state::oscar_map(address_map &map)
 	map(0x0f00, 0x0fff).ram();
 	map(0x1000, 0x1fff).ram().share("share2");
 	map(0x2000, 0x27ff).ram().w(FUNC(oscar_state::videoram_w)).share(m_videoram);
-	map(0x2800, 0x2fff).rw(m_tilegen[0], FUNC(deco_bac06_device::pf_data_8bit_r), FUNC(deco_bac06_device::pf_data_8bit_w));
+	map(0x2800, 0x2fff).rw(m_tilegen[0], FUNC(deco_bac06_device::vram8_r<false>), FUNC(deco_bac06_device::vram8_w<false>));
 	map(0x3000, 0x37ff).ram().share("spriteram");
 	map(0x3800, 0x3bff).ram().w(m_palette, FUNC(deco_rmc3_device::write8)).share("palette");
 	map(0x3c00, 0x3c00).portr("IN0");
@@ -511,8 +533,8 @@ void oscar_state::oscar_map(address_map &map)
 	map(0x3c02, 0x3c02).portr("IN2");
 	map(0x3c03, 0x3c03).portr("DSW0");
 	map(0x3c04, 0x3c04).portr("DSW1");
-	map(0x3c00, 0x3c07).w(m_tilegen[0], FUNC(deco_bac06_device::pf_control0_8bit_w));
-	map(0x3c10, 0x3c1f).w(m_tilegen[0], FUNC(deco_bac06_device::pf_control1_8bit_w));
+	map(0x3c00, 0x3c07).w(m_tilegen[0], FUNC(deco_bac06_device::ctrlreg8_w));
+	map(0x3c10, 0x3c1f).w(m_tilegen[0], FUNC(deco_bac06_device::scrollreg8_w<false>));
 	map(0x3c80, 0x3c80).w(FUNC(oscar_state::buffer_spriteram16_w)); // DMA
 	map(0x3d00, 0x3d00).w(FUNC(oscar_state::bank_w)); // BNKS
 	map(0x3d80, 0x3d80).w(m_soundlatch, FUNC(generic_latch_8_device::write)); // SOUN
@@ -543,7 +565,7 @@ void srdarwin_state::main_map(address_map &map)
 	map(0x0600, 0x07ff).ram().share("spriteram");
 	map(0x0800, 0x0fff).ram().w(FUNC(srdarwin_state::srdarwin_videoram_w)).share(m_videoram);
 	map(0x1000, 0x13ff).ram();
-	map(0x1400, 0x17ff).rw(FUNC(srdarwin_state::bg_ram_r), FUNC(srdarwin_state::bg_ram_w)).share("bg_ram");
+	map(0x1400, 0x17ff).rw(FUNC(srdarwin_state::bg_ram_r), FUNC(srdarwin_state::bg_ram_w)).share(m_bg_ram);
 	map(0x1800, 0x1800).w(FUNC(srdarwin_state::i8751_hi_w));
 	map(0x1801, 0x1801).w(FUNC(srdarwin_state::i8751_lo_w));
 	map(0x1803, 0x1803).nopw();
@@ -573,8 +595,8 @@ void srdarwin_state::srdarwinb_map(address_map &map)
 void oscar_state::cobra_map(address_map &map)
 {
 	map(0x0000, 0x07ff).ram();
-	map(0x0800, 0x0fff).rw(m_tilegen[0], FUNC(deco_bac06_device::pf_data_8bit_r), FUNC(deco_bac06_device::pf_data_8bit_w));
-	map(0x1000, 0x17ff).rw(m_tilegen[1], FUNC(deco_bac06_device::pf_data_8bit_r), FUNC(deco_bac06_device::pf_data_8bit_w));
+	map(0x0800, 0x0fff).rw(m_tilegen[0], FUNC(deco_bac06_device::vram8_r<false>), FUNC(deco_bac06_device::vram8_w<false>));
+	map(0x1000, 0x17ff).rw(m_tilegen[1], FUNC(deco_bac06_device::vram8_r<false>), FUNC(deco_bac06_device::vram8_w<false>));
 	map(0x1800, 0x1fff).ram();
 	map(0x2000, 0x27ff).ram().w(FUNC(oscar_state::videoram_w)).share(m_videoram);
 	map(0x2800, 0x2fff).ram().share("spriteram");
@@ -584,11 +606,11 @@ void oscar_state::cobra_map(address_map &map)
 	map(0x3801, 0x3801).portr("IN1");
 	map(0x3802, 0x3802).portr("DSW0");
 	map(0x3803, 0x3803).portr("DSW1");
-	map(0x3800, 0x3807).w(m_tilegen[0], FUNC(deco_bac06_device::pf_control0_8bit_w));
-	map(0x3810, 0x381f).w(m_tilegen[0], FUNC(deco_bac06_device::pf_control1_8bit_w));
+	map(0x3800, 0x3807).w(m_tilegen[0], FUNC(deco_bac06_device::ctrlreg8_w));
+	map(0x3810, 0x381f).w(m_tilegen[0], FUNC(deco_bac06_device::scrollreg8_w<false>));
 	map(0x3a00, 0x3a00).portr("IN2");
-	map(0x3a00, 0x3a07).w(m_tilegen[1], FUNC(deco_bac06_device::pf_control0_8bit_w));
-	map(0x3a10, 0x3a1f).w(m_tilegen[1], FUNC(deco_bac06_device::pf_control1_8bit_w));
+	map(0x3a00, 0x3a07).w(m_tilegen[1], FUNC(deco_bac06_device::ctrlreg8_w));
+	map(0x3a10, 0x3a1f).w(m_tilegen[1], FUNC(deco_bac06_device::scrollreg8_w<false>));
 	map(0x3c00, 0x3c00).w(FUNC(oscar_state::bank_w));
 	map(0x3c02, 0x3c02).w(FUNC(oscar_state::buffer_spriteram16_w));
 	map(0x3e00, 0x3e00).w(m_soundlatch, FUNC(generic_latch_8_device::write));
@@ -1914,9 +1936,11 @@ void ghostb_state::machine_start()
 {
 	lastmisn_state::machine_start();
 
+	m_nmi_timer = timer_alloc(FUNC(ghostb_state::nmigate_set), this);
 	m_6502_timer = timer_alloc(FUNC(ghostb_state::audiocpu_nmi_clear), this);
 	m_i8751_timer = timer_alloc(FUNC(ghostb_state::mcu_irq_clear), this);
 
+	save_item(NAME(m_bank_data));
 	save_item(NAME(m_secclr));
 	save_item(NAME(m_buffer_strobe));
 }
@@ -1983,9 +2007,9 @@ void lastmisn_state::lastmisn(machine_config &config)
 	// video hardware
 	BUFFERED_SPRITERAM8(config, m_spriteram);
 
-	DECO_KARNOVSPRITES(config, m_spritegen_krn, 0, m_palette, gfx_shackled_spr);
+	DECO_KARNOVSPRITES(config, m_spritegen_krn, m_palette, gfx_shackled_spr);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	set_screen_raw_params(config);
 	m_screen->set_screen_update(FUNC(lastmisn_state::screen_update_lastmisn));
 	m_screen->set_palette(m_palette);
@@ -2043,9 +2067,9 @@ void lastmisn_state::shackled(machine_config &config)
 	// video hardware
 	BUFFERED_SPRITERAM8(config, m_spriteram);
 
-	DECO_KARNOVSPRITES(config, m_spritegen_krn, 0, m_palette, gfx_shackled_spr);
+	DECO_KARNOVSPRITES(config, m_spritegen_krn, m_palette, gfx_shackled_spr);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	set_screen_raw_params(config);
 	m_screen->set_screen_update(FUNC(lastmisn_state::screen_update_shackled));
 	m_screen->set_palette(m_palette);
@@ -2098,10 +2122,10 @@ void gondo_state::gondo(machine_config &config)
 	// video hardware
 	BUFFERED_SPRITERAM8(config, m_spriteram);
 
-	DECO_KARNOVSPRITES(config, m_spritegen_krn, 0, m_palette, gfx_gondo_spr);
+	DECO_KARNOVSPRITES(config, m_spritegen_krn, m_palette, gfx_gondo_spr);
 	m_spritegen_krn->set_colpri_callback(FUNC(gondo_state::gondo_colpri_cb));
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	set_screen_raw_params(config);
 	m_screen->set_screen_update(FUNC(gondo_state::screen_update_gondo));
 	m_screen->screen_vblank().set(m_nmigate, FUNC(input_merger_device::in_w<1>));
@@ -2155,9 +2179,9 @@ void ghostb_state::garyoret(machine_config &config)
 	// video hardware
 	BUFFERED_SPRITERAM8(config, m_spriteram);
 
-	DECO_KARNOVSPRITES(config, m_spritegen_krn, 0, m_palette, gfx_gondo_spr);
+	DECO_KARNOVSPRITES(config, m_spritegen_krn, m_palette, gfx_gondo_spr);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	set_screen_raw_params(config);
 	m_screen->set_screen_update(FUNC(ghostb_state::screen_update_garyoret));
 	m_screen->screen_vblank().set(m_nmigate, FUNC(input_merger_device::in_w<1>));
@@ -2213,13 +2237,13 @@ void ghostb_state::ghostb(machine_config &config)
 	// video hardware
 	BUFFERED_SPRITERAM8(config, m_spriteram);
 
-	DECO_BAC06(config, m_tilegen[0], 0);
+	DECO_BAC06(config, m_tilegen[0]);
 	m_tilegen[0]->set_gfx_region_wide(1, 1, 0);
 	m_tilegen[0]->set_gfxdecode_tag(m_gfxdecode);
 
-	DECO_KARNOVSPRITES(config, m_spritegen_krn, 0, m_palette, gfx_shackled_spr);
+	DECO_KARNOVSPRITES(config, m_spritegen_krn, m_palette, gfx_shackled_spr);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	set_screen_raw_params(config);
 	m_screen->set_screen_update(FUNC(ghostb_state::screen_update_ghostb));
 	m_screen->screen_vblank().set(m_nmigate, FUNC(input_merger_device::in_w<1>));
@@ -2290,9 +2314,9 @@ void csilver_state::csilver(machine_config &config)
 	// video hardware
 	BUFFERED_SPRITERAM8(config, m_spriteram);
 
-	DECO_KARNOVSPRITES(config, m_spritegen_krn, 0, m_palette, gfx_shackled_spr);
+	DECO_KARNOVSPRITES(config, m_spritegen_krn, m_palette, gfx_shackled_spr);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	set_screen_raw_params(config);
 	m_screen->set_screen_update(FUNC(csilver_state::screen_update_lastmisn));
 	m_screen->set_palette(m_palette);
@@ -2343,14 +2367,14 @@ void oscar_state::oscar(machine_config &config)
 	// video hardware
 	BUFFERED_SPRITERAM8(config, m_spriteram);
 
-	DECO_BAC06(config, m_tilegen[0], 0);
+	DECO_BAC06(config, m_tilegen[0]);
 	m_tilegen[0]->set_gfx_region_wide(1, 1, 0);
 	m_tilegen[0]->set_gfxdecode_tag(m_gfxdecode);
 	m_tilegen[0]->set_tile_callback(FUNC(oscar_state::oscar_tile_cb));
 
-	DECO_MXC06(config, m_spritegen_mxc, 0, m_palette, gfx_oscar_spr);
+	DECO_MXC06(config, m_spritegen_mxc, m_palette, gfx_oscar_spr);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	set_screen_raw_params(config);
 	m_screen->set_screen_update(FUNC(oscar_state::screen_update_oscar));
 	m_screen->set_palette(m_palette);
@@ -2410,7 +2434,7 @@ void srdarwin_state::srdarwin(machine_config &config)
 	// video hardware
 	BUFFERED_SPRITERAM8(config, m_spriteram);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	set_screen_raw_params(config);
 	m_screen->set_screen_update(FUNC(srdarwin_state::screen_update));
 	m_screen->set_palette(m_palette);
@@ -2462,18 +2486,18 @@ void oscar_state::cobracom(machine_config &config)
 	// video hardware
 	BUFFERED_SPRITERAM8(config, m_spriteram);
 
-	DECO_BAC06(config, m_tilegen[0], 0);
+	DECO_BAC06(config, m_tilegen[0]);
 	m_tilegen[0]->set_gfx_region_wide(1, 1, 0);
 	m_tilegen[0]->set_gfxdecode_tag(m_gfxdecode);
 
-	DECO_BAC06(config, m_tilegen[1], 0);
+	DECO_BAC06(config, m_tilegen[1]);
 	m_tilegen[1]->set_gfx_region_wide(2, 2, 0);
 	m_tilegen[1]->set_gfxdecode_tag(m_gfxdecode);
 
-	DECO_MXC06(config, m_spritegen_mxc, 0, m_palette, gfx_cobracom_spr);
+	DECO_MXC06(config, m_spritegen_mxc, m_palette, gfx_cobracom_spr);
 	m_spritegen_mxc->set_colpri_callback(FUNC(oscar_state::cobracom_colpri_cb));
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	set_screen_raw_params(config);
 	m_screen->set_screen_update(FUNC(oscar_state::screen_update_cobracom));
 	m_screen->set_palette(m_palette);

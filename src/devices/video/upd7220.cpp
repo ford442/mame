@@ -420,7 +420,7 @@ inline void upd7220_device::recompute_parameters()
 	if (horiz_pix_total == 0 || vert_pix_total == 0) //bail out if screen params aren't valid
 		return;
 
-	attoseconds_t refresh = HZ_TO_ATTOSECONDS(clock() * 8) * horiz_pix_total * vert_pix_total;
+	attotime refresh = attotime::from_ticks(horiz_pix_total * vert_pix_total, clock() * 8);
 
 	rectangle visarea(
 			0, //(m_hs + m_hbp) * 8;
@@ -428,7 +428,7 @@ inline void upd7220_device::recompute_parameters()
 			m_vbp, //m_vs + m_vbp;
 			m_al * vert_mult + m_vbp - 1);//vert_pix_total - m_vfp - 1;
 
-	LOGCRTC("New Screen setup: %u x %u @ %f Hz\n", horiz_pix_total, vert_pix_total, 1 / ATTOSECONDS_TO_DOUBLE(refresh));
+	LOGCRTC("New Screen setup: %u x %u @ %f Hz\n", horiz_pix_total, vert_pix_total, refresh.as_hz());
 	LOGCRTC("Visible Area: (%u, %u) - (%u, %u)\n", visarea.left(), visarea.top(), visarea.right(), visarea.bottom());
 	//LOGCRTC("%d %d %d %d %d\n",m_hs,m_hbp,m_aw,m_hfp,m_pitch);
 	//LOGCRTC("%d %d %d %d\n",m_vs,m_vbp,m_al,m_vfp);
@@ -1426,14 +1426,12 @@ void upd7220_device::process_fifo()
 			LOGCMD3("WDAT PATTERN=%04x\n", m_pattern);
 			if (m_figs.m_figure_type)
 				break;
-			LOGCMD3("- CR=%02x (%02x %02x) (%c) EAD=%06x - FIGS DC=%04x\n"
-				, m_cr
-				, m_pr[2]
-				, m_pr[1]
-				, m_pr[1] ? m_pr[1]:' '
-				, m_ead
-				, m_figs.m_dc
-			);
+			LOGCMD3("- CR=%02x (%02x %02x) (%c) EAD=%06x - FIGS DC=%04x\n",
+					m_cr,
+					m_pr[2], m_pr[1],
+					m_pr[1] ? m_pr[1] : ' ',
+					m_ead,
+					m_figs.m_dc);
 			fifo_set_direction(FIFO_WRITE);
 
 			wdat((m_cr & 0x18) >> 3,m_cr & 3);

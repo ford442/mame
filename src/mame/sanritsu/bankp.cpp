@@ -8,6 +8,9 @@
 
     driver by Nicola Salmoria
 
+    BTANB:
+    - dark red opaque background behind text labels
+
 
     PCB Layout (Combat Hawk)
     -----------------------
@@ -197,16 +200,17 @@ void bankp_state::palette(palette_device &palette) const
 		bit1 = BIT(*color_prom, 1);
 		bit2 = BIT(*color_prom, 2);
 		int const r = 0x21 * bit0 + 0x47 * bit1 + 0x97 * bit2;
+
 		// green component
 		bit0 = BIT(*color_prom, 3);
 		bit1 = BIT(*color_prom, 4);
 		bit2 = BIT(*color_prom, 5);
 		int const g = 0x21 * bit0 + 0x47 * bit1 + 0x97 * bit2;
+
 		// blue component
-		bit0 = 0;
-		bit1 = BIT(*color_prom, 6);
-		bit2 = BIT(*color_prom, 7);
-		int const b = 0x21 * bit0 + 0x47 * bit1 + 0x97 * bit2;
+		bit0 = BIT(*color_prom, 6);
+		bit1 = BIT(*color_prom, 7);
+		int const b = 0x52 * bit0 + 0xad * bit1;
 
 		palette.set_indirect_color(i, rgb_t(r, g, b));
 
@@ -529,15 +533,15 @@ void bankp_state::bankp(machine_config &config)
 	// Video timing
 	// PCB measured: H = 15.61khz V = 60.99hz, +/- 0.01hz
 	// --> VTOTAL should be OK, HTOTAL not 100% certain
-	static constexpr XTAL PIXEL_CLOCK = 15.46848_MHz_XTAL / 3;
+	constexpr XTAL PIXEL_CLOCK = 15.46848_MHz_XTAL / 3;
 
-	static constexpr int HTOTAL  = 330;
-	static constexpr int HBEND   = 0 + 3 * 8;
-	static constexpr int HBSTART = 224 + 3 * 8;
+	constexpr int HTOTAL  = 330;
+	constexpr int HBEND   = 0 + 3 * 8;
+	constexpr int HBSTART = 224 + 3 * 8;
 
-	static constexpr int VTOTAL  = 256;
-	static constexpr int VBEND   = 0 + 2 * 8;
-	static constexpr int VBSTART = 224 + 2 * 8;
+	constexpr int VTOTAL  = 256;
+	constexpr int VBEND   = 0 + 2 * 8;
+	constexpr int VBSTART = 224 + 2 * 8;
 
 	// basic machine hardware
 	Z80(config, m_maincpu, 15.46848_MHz_XTAL / 6);
@@ -546,7 +550,7 @@ void bankp_state::bankp(machine_config &config)
 	m_maincpu->set_vblank_int("screen", FUNC(bankp_state::vblank_interrupt));
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(PIXEL_CLOCK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART);
 	screen.set_screen_update(FUNC(bankp_state::screen_update));
 	screen.set_palette(m_palette);
@@ -557,6 +561,7 @@ void bankp_state::bankp(machine_config &config)
 	// sound hardware
 	SPEAKER(config, "mono").front_center();
 
+	// 1.0 is ok, sound does not overflow other than the boot-up beep
 	SN76489A(config, "sn1", 15.46848_MHz_XTAL / 6).add_route(ALL_OUTPUTS, "mono", 1.0);
 	SN76489A(config, "sn2", 15.46848_MHz_XTAL / 6).add_route(ALL_OUTPUTS, "mono", 1.0);
 	SN76489A(config, "sn3", 15.46848_MHz_XTAL / 6).add_route(ALL_OUTPUTS, "mono", 1.0);
@@ -595,7 +600,7 @@ ROM_START( bankp )
 
 	ROM_REGION( 0x025c, "user1", 0 )
 	ROM_LOAD( "315-5074.2c.bin",   0x0000, 0x025b, CRC(2e57bbba) SHA1(c3e45e8a972342779442e50872a2f5f2d61e9c0a) )
-	ROM_LOAD( "315-5073.pal16l4",  0x0000, 0x0001, NO_DUMP ) // read protected
+	ROM_LOAD( "315-5073.pal16l4",  0x025b, 0x0001, NO_DUMP ) // read protected
 ROM_END
 
 ROM_START( bankpt )
@@ -653,7 +658,7 @@ ROM_START( combh )
 
 	ROM_REGION( 0x025c, "user1", 0 )
 	ROM_LOAD( "315-5074.2c.bin",   0x0000, 0x025b, CRC(2e57bbba) SHA1(c3e45e8a972342779442e50872a2f5f2d61e9c0a) )
-	ROM_LOAD( "315-5073.pal16l4",  0x0000, 0x0001, NO_DUMP ) // read protected
+	ROM_LOAD( "315-5073.pal16l4",  0x025b, 0x0001, NO_DUMP ) // read protected
 ROM_END
 
 } // anonymous namespace

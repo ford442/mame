@@ -15,7 +15,8 @@
     Step 2.1: 166 MHz PPC, same 3D engine as 2.0, differences unknown
 
     Game status:
-    vf3/vf3a/vf3tb - crashes
+    vf3/vf3a/vf3tb - crashes sometimes, performance dips at startup (illegal polygons filling the
+                     pipeline?), runs too slow during gameplay
     getbassur - works
     basssdx/getbass/getbassdx - I/O board error (?)
 
@@ -23,7 +24,7 @@
   * scuddxo - lots of GFX problems, hangs after a few seconds in test mode and in game.
   * scudplus/scudplusa - works
     lostwsga - works
-    vs215 - works
+    vs215 - works, can hang during gameplay (verify, may be fixed with scan timer rollover fix)
     lemans24 - works
     vs29815 - massive memory trashing and page faults
 
@@ -32,16 +33,16 @@
     skichamp - boots after skipping the drive board errors, massive slowdowns
     srally2 - works, uses JTAG patch, draws no polygon if coin is inserted at Sega logo
     srally2p/srally2pa/sraly2dx - needs specific JTAG patch / bypass
-    von2/von2a/von2o/von254g - works
+    von2/von2a/von2o/von254g - works, corrupted robot textures (mip mapping?)
     fvipers2 - crashes after player selection
-    vs298 - works, hangs with an onscreen error code
-    vs299/vs2v991 - works
+    vs298 - hangs with an onscreen "unknown error code" during attract, polygon covers most of the 3d.
+    vs299/vs2v991 - works, polygon covers most of the 3d.
     oceanhun - works
     lamachin - works
 
-  * dayto2pe - bug in DRC MMU page-fault handling, causes infinite loop at PC:0x2270 (or debug assert)
-  * daytona2 - As above
-    spikeout/spikeofe - As above.
+  * dayto2pe - works
+  * daytona2 - works
+    spikeout/spikeofe - works, severe texture glitches (mip mapping?)
  ** dirtdvls/dirtdvlau/dirtdvlj/dirtdvlu - works
     swtrilgy - works, black screen in service mode
     swtrilga - doesn't pass "Wait Setup the Feedback Leaver"
@@ -1287,10 +1288,8 @@ TIMER_CALLBACK_MEMBER(model3_state::real3d_dma_timer_callback)
     Un-syncing the interrupts breaks the progress bar in magtruck
 */
 
-TIMER_CALLBACK_MEMBER(model3_state::model3_scan_timer_tick)
+TIMER_CALLBACK_MEMBER(model3_state::scan_timer_tick)
 {
-	m_scan_timer->adjust(m_screen->time_until_pos(m_screen->vpos() + 1), m_screen->vpos() + 1);
-
 	int scanline = param;
 
 	if (scanline == 384)
@@ -1302,6 +1301,11 @@ TIMER_CALLBACK_MEMBER(model3_state::model3_scan_timer_tick)
 		//if ((scanline & 0x1) == 0)
 			set_irq_line(0x0c, ASSERT_LINE);
 	}
+
+	scanline ++;
+	scanline %= m_screen->height();
+
+	m_scan_timer->adjust(m_screen->time_until_pos(scanline), scanline);
 }
 
 MACHINE_START_MEMBER(model3_state,model3_10)
@@ -1310,7 +1314,7 @@ MACHINE_START_MEMBER(model3_state,model3_10)
 
 	m_sound_timer = timer_alloc(FUNC(model3_state::model3_sound_timer_tick), this);
 	m_real3d_dma_timer = timer_alloc(FUNC(model3_state::real3d_dma_timer_callback), this);
-	m_scan_timer = timer_alloc(FUNC(model3_state::model3_scan_timer_tick), this);
+	m_scan_timer = timer_alloc(FUNC(model3_state::scan_timer_tick), this);
 }
 MACHINE_START_MEMBER(model3_state,model3_15)
 {
@@ -1318,7 +1322,7 @@ MACHINE_START_MEMBER(model3_state,model3_15)
 
 	m_sound_timer = timer_alloc(FUNC(model3_state::model3_sound_timer_tick), this);
 	m_real3d_dma_timer = timer_alloc(FUNC(model3_state::real3d_dma_timer_callback), this);
-	m_scan_timer = timer_alloc(FUNC(model3_state::model3_scan_timer_tick), this);
+	m_scan_timer = timer_alloc(FUNC(model3_state::scan_timer_tick), this);
 }
 MACHINE_START_MEMBER(model3_state,model3_20)
 {
@@ -1326,7 +1330,7 @@ MACHINE_START_MEMBER(model3_state,model3_20)
 
 	m_sound_timer = timer_alloc(FUNC(model3_state::model3_sound_timer_tick), this);
 	m_real3d_dma_timer = timer_alloc(FUNC(model3_state::real3d_dma_timer_callback), this);
-	m_scan_timer = timer_alloc(FUNC(model3_state::model3_scan_timer_tick), this);
+	m_scan_timer = timer_alloc(FUNC(model3_state::scan_timer_tick), this);
 }
 MACHINE_START_MEMBER(model3_state,model3_21)
 {
@@ -1334,15 +1338,14 @@ MACHINE_START_MEMBER(model3_state,model3_21)
 
 	m_sound_timer = timer_alloc(FUNC(model3_state::model3_sound_timer_tick), this);
 	m_real3d_dma_timer = timer_alloc(FUNC(model3_state::real3d_dma_timer_callback), this);
-	m_scan_timer = timer_alloc(FUNC(model3_state::model3_scan_timer_tick), this);
+	m_scan_timer = timer_alloc(FUNC(model3_state::scan_timer_tick), this);
 }
 
 void model3_state::model3_init(int step)
 {
 	m_step = step;
 
-	if (m_uart.found())
-		m_uart->write_cts(0);
+	m_uart->write_cts(0);
 
 	m_sound_irq_enable = 0;
 	m_sound_timer->adjust(attotime::never);
@@ -1593,32 +1596,6 @@ uint64_t model3_state::real3d_status_r(offs_t offset)
 }
 
 /* SCSP interface */
-uint8_t model3_state::model3_sound_r(offs_t offset)
-{
-	switch (offset)
-	{
-		case 0:
-		{
-			if (m_uart.found())
-				return m_uart->data_r();
-
-			break;
-		}
-
-		case 4:
-		{
-			if (m_uart.found())
-				return m_uart->status_r();
-
-			uint8_t res = 0;
-			res |= 1;
-			res |= 0x2;     // magtruck country check
-			return res;
-		}
-	}
-	return 0;
-}
-
 void model3_state::model3_sound_w(offs_t offset, uint8_t data)
 {
 	switch (offset)
@@ -1627,17 +1604,13 @@ void model3_state::model3_sound_w(offs_t offset, uint8_t data)
 			// clear the interrupt
 			set_irq_line(0x40, CLEAR_LINE);
 
-			if (m_uart.found())
-				m_uart->data_w(data);
-
 			// send to the sound board
-			m_scsp1->midi_in(data);
+			m_uart->data_w(data);
 
 			break;
 
 		case 4:
-			if (m_uart.found())
-				m_uart->control_w(data);
+			m_uart->control_w(data);
 
 			// HACK: MIDI comms thru SCSP MCIEB?
 			if (data & 0x20)
@@ -1676,7 +1649,7 @@ void model3_state::model3_10_mem(address_map &map)
 	map(0x98000000, 0x980fffff).w(FUNC(model3_state::real3d_polygon_ram_w));
 
 	map(0xf0040000, 0xf004003f).mirror(0x0e000000).rw("io", FUNC(sega_315_5649_device::read), FUNC(sega_315_5649_device::write)).umask64(0xff000000ff000000);
-	map(0xf0080000, 0xf008ffff).mirror(0x0e000000).rw(FUNC(model3_state::model3_sound_r), FUNC(model3_state::model3_sound_w));
+	map(0xf0080000, 0xf008ffff).mirror(0x0e000000).r(m_uart, FUNC(i8251_device::read)).w(FUNC(model3_state::model3_sound_w));
 	map(0xf00c0000, 0xf00dffff).mirror(0x0e000000).ram().share("backup");    /* backup SRAM */
 	map(0xf0100000, 0xf010003f).mirror(0x0e000000).rw(FUNC(model3_state::model3_sys_r), FUNC(model3_state::model3_sys_w));
 	map(0xf0140000, 0xf014003f).mirror(0x0e000000).rw(FUNC(model3_state::model3_rtc_r), FUNC(model3_state::model3_rtc_w));
@@ -3438,7 +3411,7 @@ ROM_END
 ROM_START( vs298 )  /* Step 2.0, Sega ID# 833-13496, ROM board ID# 834-13497 VS2 VER98 STEP2, Security board ID# 837-13498-COM (317-0237-COM security chip) */
 	ROM_REGION64_BE( 0x8800000, "user1", 0 ) /* program + data ROMs */
 	// CROM
-	ROM_LOAD64_WORD_SWAP( "epr-20917.17",  0x400006, 0x100000, CRC(c3bbb270) SHA1(16b2342031ff72408f2290e775df5c8aa344c2e4) )
+	ROM_LOAD64_WORD_SWAP( "epr-20917.17",  0x400006, 0x100000, CRC(969e4bda) SHA1(647f1d78e11c114c63d00c3da747b5119efbe0f0) )
 	ROM_LOAD64_WORD_SWAP( "epr-20918.18",  0x400004, 0x100000, CRC(0e9cdc5b) SHA1(356816d0380c791b9d812ce17fa95123d15bb5e9) )
 	ROM_LOAD64_WORD_SWAP( "epr-20919.19",  0x400002, 0x100000, CRC(7a0713d2) SHA1(595f962ae852e48fb24aa08d0b8603692acfb1b9) )
 	ROM_LOAD64_WORD_SWAP( "epr-20920.20",  0x400000, 0x100000, CRC(428d05fc) SHA1(451e78c7b381e7d84dbac2a3d68ebbd6f1490bad) )
@@ -6293,12 +6266,13 @@ void model3_state::model3snd_ctrl(uint16_t data)
 	}
 }
 
+// We assume using the same waitstate weights as Saturn, applied to SCSP area only
 void model3_state::model3_snd(address_map &map)
 {
-	map(0x000000, 0x07ffff).ram().share("soundram");
-	map(0x100000, 0x100fff).rw(m_scsp1, FUNC(scsp_device::read), FUNC(scsp_device::write));
-	map(0x200000, 0x27ffff).ram().share("soundram2");
-	map(0x300000, 0x300fff).rw("scsp2", FUNC(scsp_device::read), FUNC(scsp_device::write));
+	map(0x000000, 0x07ffff).before_delay(NAME([](offs_t) { return 1; })).ram().share("soundram");
+	map(0x100000, 0x100fff).before_delay(NAME([](offs_t) { return 1; })).rw(m_scsp1, FUNC(scsp_device::read), FUNC(scsp_device::write));
+	map(0x200000, 0x27ffff).before_delay(NAME([](offs_t) { return 1; })).ram().share("soundram2");
+	map(0x300000, 0x300fff).before_delay(NAME([](offs_t) { return 1; })).rw("scsp2", FUNC(scsp_device::read), FUNC(scsp_device::write));
 	map(0x400000, 0x400001).w(FUNC(model3_state::model3snd_ctrl));
 	map(0x600000, 0x67ffff).rom().region("audiocpu", 0);
 	map(0x800000, 0x9fffff).rom().region("samples", 0);
@@ -6344,16 +6318,11 @@ void model3_state::add_cpu_166mhz(machine_config &config)
 
 void model3_state::dsb2_config(machine_config &config)
 {
-	DSB2(config, m_dsb2, 0);
+	DSB2(config, m_dsb2);
 	m_dsb2->add_route(0, "speaker", 1.0, 0);
 	m_dsb2->add_route(1, "speaker", 1.0, 1);
 
-	I8251(config, m_uart, 8000000); // uPD71051
-	m_uart->txd_handler().set(m_dsb2, FUNC(dsb2_device::write_txd));
-
-	clock_device &uart_clock(CLOCK(config, "uart_clock", 500000)); // 16 times 31.25MHz (standard Sega/MIDI sound data rate)
-	uart_clock.signal_handler().set(m_uart, FUNC(i8251_device::write_txc));
-	uart_clock.signal_handler().append(m_uart, FUNC(i8251_device::write_rxc));
+	m_uart->txd_handler().append(m_dsb2, FUNC(dsb2_device::write_txd));
 }
 
 void model3_state::add_base_devices(machine_config &config)
@@ -6365,7 +6334,7 @@ void model3_state::add_base_devices(machine_config &config)
 	NVRAM(config, "backup", nvram_device::DEFAULT_ALL_1);
 	RTC72421(config, m_rtc, XTAL(32'768)); // internal oscillator
 
-	SEGA_315_5649(config, m_io, 0);
+	SEGA_315_5649(config, m_io);
 	m_io->out_pa_callback().set(FUNC(model3_state::eeprom_w));
 	m_io->in_pb_callback().set(FUNC(model3_state::input_r));
 	m_io->in_pc_callback().set_ioport("IN2");
@@ -6381,7 +6350,7 @@ void model3_state::add_base_devices(machine_config &config)
 	m_io->an_port_callback<6>().set_ioport("AN6");
 	m_io->an_port_callback<7>().set_ioport("AN7");
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	// TODO: runs at 57.5 Hz-ish, same as Model 1/2/System 24?
 	m_screen->set_raw(XTAL(32'000'000)/2, 656, 0/*+69*/, 496/*+69*/, 424, 0/*+25*/, 384/*+25*/);
 	m_screen->set_screen_update(FUNC(model3_state::screen_update_model3));
@@ -6395,6 +6364,7 @@ void model3_state::add_base_devices(machine_config &config)
 	SCSP(config, m_scsp1, 45.1584_MHz_XTAL / 2); // 45.158 MHz XTAL
 	m_scsp1->set_addrmap(0, &model3_state::scsp1_map);
 	m_scsp1->irq_cb().set(FUNC(model3_state::scsp_irq));
+	m_scsp1->midi_out_cb().set(m_uart, FUNC(i8251_device::write_rxd));
 	m_scsp1->add_route(0, "speaker", 1.0, 0);
 	m_scsp1->add_route(1, "speaker", 1.0, 1);
 
@@ -6403,16 +6373,23 @@ void model3_state::add_base_devices(machine_config &config)
 	scsp2.add_route(0, "speaker", 1.0, 0);
 	scsp2.add_route(1, "speaker", 1.0, 1);
 
-	SEGA_BILLBOARD(config, m_billboard, 0);
+	I8251(config, m_uart, 8000000); // uPD71051
+	m_uart->txd_handler().set(m_scsp1, FUNC(scsp_device::midi_in));
+
+	clock_device &uart_clock(CLOCK(config, "uart_clock", 500000)); // 16 times 31.25kHz (standard Sega/MIDI sound data rate)
+	uart_clock.signal_handler().set(m_uart, FUNC(i8251_device::write_txc));
+	uart_clock.signal_handler().append(m_uart, FUNC(i8251_device::write_rxc));
+
+	SEGA_BILLBOARD(config, m_billboard);
 
 	config.set_default_layout(layout_segabill);
 }
 
 void model3_state::add_scsi_devices(machine_config &config)
 {
-	SCSI_PORT(config, "scsi", 0);
+	SCSI_PORT(config, "scsi");
 
-	LSI53C810(config, m_lsi53c810, 0);
+	LSI53C810(config, m_lsi53c810);
 	m_lsi53c810->set_irq_callback(FUNC(model3_state::scsi_irq_callback));
 	m_lsi53c810->set_dma_callback(FUNC(model3_state::real3d_dma_callback));
 	m_lsi53c810->set_fetch_callback(FUNC(model3_state::scsi_fetch));
@@ -6423,7 +6400,7 @@ void model3_state::add_crypt_devices(machine_config &config)
 {
 	m_maincpu->set_addrmap(AS_PROGRAM, &model3_state::model3_5881_mem);
 
-	SEGA315_5881_CRYPT(config, m_cryptdevice, 0);
+	SEGA315_5881_CRYPT(config, m_cryptdevice);
 	m_cryptdevice->set_read_cb(FUNC(model3_state::crypt_read_callback));
 }
 
@@ -6466,7 +6443,7 @@ void model3_state::getbass(machine_config &config)
 	iocpu.out_p2_callback().set("ioeeprom", FUNC(eeprom_serial_93cxx_device::cs_write)).bit(6);
 
 	SEGA_315_5296(config, "io60", 32_MHz_XTAL);
-	SEGA_315_5649(config, "io70", 0);
+	SEGA_315_5649(config, "io70");
 
 	EEPROM_93C46_16BIT(config, "ioeeprom"); // AK93C45
 
@@ -6482,23 +6459,18 @@ void model3_state::model3_15(machine_config &config)
 	MCFG_MACHINE_START_OVERRIDE(model3_state,model3_15)
 	MCFG_MACHINE_RESET_OVERRIDE(model3_state,model3_15)
 
-	M3COMM(config, "comm_board", 0);
+	M3COMM(config, "comm_board");
 }
 
 void model3_state::scud(machine_config &config)
 {
 	model3_15(config);
 
-	DSBZ80(config, m_dsbz80, 0);
+	DSBZ80(config, m_dsbz80);
 	m_dsbz80->add_route(0, "speaker", 1.0, 0);
 	m_dsbz80->add_route(1, "speaker", 1.0, 1);
 
-	I8251(config, m_uart, 8000000); // uPD71051
-	m_uart->txd_handler().set(m_dsbz80, FUNC(dsbz80_device::write_txd));
-
-	clock_device &uart_clock(CLOCK(config, "uart_clock", 500000)); // 16 times 31.25MHz (standard Sega/MIDI sound data rate)
-	uart_clock.signal_handler().set(m_uart, FUNC(i8251_device::write_txc));
-	uart_clock.signal_handler().append(m_uart, FUNC(i8251_device::write_rxc));
+	m_uart->txd_handler().append(m_dsbz80, FUNC(dsbz80_device::write_txd));
 }
 
 void model3_state::lostwsga(machine_config &config)
@@ -6522,7 +6494,7 @@ void model3_state::model3_20(machine_config &config)
 	MCFG_MACHINE_START_OVERRIDE(model3_state, model3_20)
 	MCFG_MACHINE_RESET_OVERRIDE(model3_state, model3_20)
 
-	M3COMM(config, "comm_board", 0);
+	M3COMM(config, "comm_board");
 }
 
 void model3_state::model3_20_5881(machine_config &config)
@@ -6545,7 +6517,7 @@ void model3_state::model3_21(machine_config &config)
 	MCFG_MACHINE_START_OVERRIDE(model3_state, model3_21)
 	MCFG_MACHINE_RESET_OVERRIDE(model3_state, model3_21)
 
-	M3COMM(config, "comm_board", 0);
+	M3COMM(config, "comm_board");
 }
 
 void model3_state::swtrilgyp(machine_config &config)
@@ -6965,69 +6937,69 @@ void model3_state::init_lamachin()
 
 
 /* Model 3 Step 1.0 */
-GAME( 1996, vf3,        0,        model3_10,      model3,   model3_state, init_vf3,       ROT0, "Sega", "Virtua Fighter 3 (Japan, Revision D)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, U.S.A., Export, Asia
-GAME( 1996, vf3c,       vf3,      model3_10,      model3,   model3_state, init_vf3,       ROT0, "Sega", "Virtua Fighter 3 (Japan, Revision C)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, U.S.A., Export, Asia
-GAME( 1996, vf3a,       vf3,      model3_10,      model3,   model3_state, init_vf3,       ROT0, "Sega", "Virtua Fighter 3 (Japan, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, U.S.A., Export
-GAME( 1996, vf3tb,      vf3,      model3_10,      model3,   model3_state, init_model3_10, ROT0, "Sega", "Virtua Fighter 3 Team Battle (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, U.S.A., Export, Asia
-GAME( 1997, bassdx,     0,        model3_10,      bass,     model3_state, init_bass,      ROT0, "Sega", "Sega Bass Fishing Deluxe (USA)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1997, getbassdx,  bassdx,   model3_10,      bass,     model3_state, init_bass,      ROT0, "Sega", "Get Bass: Sega Bass Fishing Deluxe (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1997, getbassur,  bassdx,   model3_10,      bass,     model3_state, init_bass,      ROT0, "Sega", "Get Bass: Sega Bass Fishing Upright (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1997, getbass,    bassdx,   getbass,        bass,     model3_state, init_bass,      ROT0, "Sega", "Get Bass: Sega Bass Fishing (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1996, vf3,        0,        model3_10,      model3,   model3_state, init_vf3,       ROT0, "Sega", "Virtua Fighter 3 (Revision D)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, U.S.A., Export, Asia
+GAME( 1996, vf3c,       vf3,      model3_10,      model3,   model3_state, init_vf3,       ROT0, "Sega", "Virtua Fighter 3 (Revision C)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, U.S.A., Export, Asia
+GAME( 1996, vf3a,       vf3,      model3_10,      model3,   model3_state, init_vf3,       ROT0, "Sega", "Virtua Fighter 3 (Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, U.S.A., Export
+GAME( 1996, vf3tb,      vf3,      model3_10,      model3,   model3_state, init_model3_10, ROT0, "Sega", "Virtua Fighter 3 Team Battle", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, U.S.A., Export, Asia
+GAME( 1997, bassdx,     0,        model3_10,      bass,     model3_state, init_bass,      ROT0, "Sega", "Sega Bass Fishing Deluxe", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1997, getbassdx,  bassdx,   model3_10,      bass,     model3_state, init_bass,      ROT0, "Sega", "Get Bass: Sega Bass Fishing Deluxe", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1997, getbassur,  bassdx,   model3_10,      bass,     model3_state, init_bass,      ROT0, "Sega", "Get Bass: Sega Bass Fishing Upright", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1997, getbass,    bassdx,   getbass,        bass,     model3_state, init_bass,      ROT0, "Sega", "Get Bass: Sega Bass Fishing", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 
 /* Model 3 Step 1.5 */
-GAME( 1996, scud,       0,        scud,           scud,     model3_state, init_scud,      ROT0, "Sega", "Scud Race / Sega Super GT - Twin/DX (Export)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // No region specified or selectable
-GAME( 1996, scuddx,     scud,     scud,           scud,     model3_state, init_scud,      ROT0, "Sega", "Scud Race / Sega Super GT - Deluxe (Export, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, USA, Export
-GAME( 1996, scuddxo,    scud,     scud,           scud,     model3_state, init_scud,      ROT0, "Sega", "Scud Race / Sega Super GT - Deluxe (Export)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, USA, Export
+GAME( 1996, scud,       0,        scud,           scud,     model3_state, init_scud,      ROT0, "Sega", "Scud Race / Sega Super GT - Twin/DX", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, USA, Export
+GAME( 1996, scuddx,     scud,     scud,           scud,     model3_state, init_scud,      ROT0, "Sega", "Scud Race / Sega Super GT - Deluxe (Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, USA, Export
+GAME( 1996, scuddxo,    scud,     scud,           scud,     model3_state, init_scud,      ROT0, "Sega", "Scud Race / Sega Super GT - Deluxe", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, USA, Export
 GAME( 1996, scudau,     scud,     scud,           scud,     model3_state, init_scud,      ROT0, "Sega", "Scud Race - Twin/DX (Australia)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1997, scudplus,   scud,     scud,           scud,     model3_state, init_scudplus,  ROT0, "Sega", "Scud Race Plus / Sega Super GT Plus - Twin/DX (Export, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, USA, Export
-GAME( 1997, scudplusa,  scud,     scud,           scud,     model3_state, init_scudplusa, ROT0, "Sega", "Scud Race Plus / Sega Super GT Plus - Twin/DX (Export)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, USA, Export
-GAME( 1997, lostwsga,   0,        lostwsga,       lostwsga, model3_state, init_lostwsga,  ROT0, "Sega", "The Lost World: Jurassic Park (Japan, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1997, scudplus,   scud,     scud,           scud,     model3_state, init_scudplus,  ROT0, "Sega", "Scud Race Plus / Sega Super GT Plus - Twin/DX (Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, USA, Export
+GAME( 1997, scudplusa,  scud,     scud,           scud,     model3_state, init_scudplusa, ROT0, "Sega", "Scud Race Plus / Sega Super GT Plus - Twin/DX", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, USA, Export
+GAME( 1997, lostwsga,   0,        lostwsga,       lostwsga, model3_state, init_lostwsga,  ROT0, "Sega", "The Lost World: Jurassic Park (Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1997, lostwsgp,   lostwsga, lostwsga,       lostwsga, model3_state, init_lostwsga,  ROT0, "Sega", "The Lost World: Jurassic Park (location test)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, USA, Export, Koala
 GAME( 1997, vs215,      vs2,      model3_15,      model3,   model3_state, init_vs215,     ROT0, "Sega", "Virtua Striker 2 (Step 1.5, Export, USA)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1997, vs215o,     vs2,      model3_15,      model3,   model3_state, init_vs215,     ROT0, "Sega", "Virtua Striker 2 (Step 1.5, Japan, test/debug?)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // test/debug version with render/CPU data displayed on screen
-GAME( 1997, lemans24,   0,        model3_15,      scud,     model3_state, init_lemans24,  ROT0, "Sega", "Le Mans 24 (Japan, Revision B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1998, vs29815,    vs298,    model3_15,      model3,   model3_state, init_vs29815,   ROT0, "Sega", "Virtua Striker 2 '98 (Step 1.5, Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1997, lemans24,   0,        model3_15,      scud,     model3_state, init_lemans24,  ROT0, "Sega", "Le Mans 24 (Revision B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1998, vs29815,    vs298,    model3_15,      model3,   model3_state, init_vs29815,   ROT0, "Sega", "Virtua Striker 2 '98 (Step 1.5)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1998, vs29915,    vs2v991,  model3_15,      model3,   model3_state, init_vs215,     ROT0, "Sega", "Virtua Striker 2 '99.1 (Step 1.5, Export, USA, Revision B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // shows Virtua Striker 2 Version '99.1 icon during demo
 GAME( 1998, vs29915a,   vs2v991,  model3_15,      model3,   model3_state, init_vs215,     ROT0, "Sega", "Virtua Striker 2 '99 (Step 1.5, Export, USA)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1998, vs29915j,   vs2v991,  model3_15,      model3,   model3_state, init_vs215,     ROT0, "Sega", "Virtua Striker 2 '99.1 (Step 1.5, Japan, Revision B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // shows Virtua Striker 2 Version '99.1 icon during demo
 
 /* Model 3 Step 2.0 */
 GAME( 1997, vs2,        0,        model3_20,      model3,   model3_state, init_vs2,       ROT0, "Sega", "Virtua Striker 2 (Step 2.0, Export, USA)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1997, harley,     0,        model3_20,      harley,   model3_state, init_harley,    ROT0, "Sega", "Harley-Davidson and L.A. Riders (Export, Revision B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1997, harleya,    harley,   model3_20,      harley,   model3_state, init_harleya,   ROT0, "Sega", "Harley-Davidson and L.A. Riders (Export, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1998, lamachin,   0,        model3_20_5881, model3,   model3_state, init_lamachin,  ROT0, "Sega", "L.A. Machineguns (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1998, oceanhun,   0,        model3_20_5881, model3,   model3_state, init_oceanhun,  ROT0, "Sega", "The Ocean Hunter (Japan, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1998, oceanhuna,  oceanhun, model3_20_5881, model3,   model3_state, init_oceanhun,  ROT0, "Sega", "The Ocean Hunter (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1998, skichamp,   0,        model3_20,      skichamp, model3_state, init_skichamp,  ROT0, "Sega", "Ski Champ (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1998, srally2,    0,        srally2,        scud,     model3_state, init_srally2,   ROT0, "Sega", "Sega Rally 2 (Export)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // No region specified or selectable
-GAME( 1998, srally2p,   srally2,  srally2,        scud,     model3_state, init_model3_20, ROT0, "Sega", "Sega Rally 2 (prototype, 29 Dec 1997)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // need specific JTAG access patches
-GAME( 1998, srally2pa,  srally2,  srally2,        scud,     model3_state, init_model3_20, ROT0, "Sega", "Sega Rally 2 (prototype, 8 Dec 1997)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // need specific JTAG access patches
-GAME( 1998, srally2dx,  srally2,  model3_20,      scud,     model3_state, init_model3_20, ROT0, "Sega", "Sega Rally 2 Deluxe (Export)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // need specific JTAG access patches
-GAME( 1998, von2,       0,        model3_20_5881, von2,     model3_state, init_von2,      ROT0, "Sega", "Virtual On 2: Oratorio Tangram (Japan, Revision B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // No region specified or selectable
-GAME( 1998, von2a,      von2,     model3_20_5881, von2,     model3_state, init_von2,      ROT0, "Sega", "Virtual On 2: Oratorio Tangram (Japan, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // No region specified or selectable
-GAME( 1998, von2o,      von2,     model3_20_5881, von2,     model3_state, init_von2,      ROT0, "Sega", "Virtual On 2: Oratorio Tangram (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // No region specified or selectable
-GAME( 1998, von254g,    von2,     model3_20_5881, von2,     model3_state, init_von2,      ROT0, "Sega", "Virtual On 2: Oratorio Tangram (Japan, ver 5.4g)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // No region specified or selectable
-GAME( 1998, fvipers2,   0,        model3_20_5881, model3,   model3_state, init_vs299,     ROT0, "Sega", "Fighting Vipers 2 (Japan, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1998, fvipers2o,  fvipers2, model3_20_5881, model3,   model3_state, init_vs299,     ROT0, "Sega", "Fighting Vipers 2 (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1998, vs298,      0,        model3_20_5881, model3,   model3_state, init_vs298,     ROT0, "Sega", "Virtua Striker 2 '98 (Step 2.0, Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1997, harley,     0,        model3_20,      harley,   model3_state, init_harley,    ROT0, "Sega", "Harley-Davidson and L.A. Riders (Revision B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1997, harleya,    harley,   model3_20,      harley,   model3_state, init_harleya,   ROT0, "Sega", "Harley-Davidson and L.A. Riders (Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1998, lamachin,   0,        model3_20_5881, model3,   model3_state, init_lamachin,  ROT0, "Sega", "L.A. Machineguns", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1998, oceanhun,   0,        model3_20_5881, model3,   model3_state, init_oceanhun,  ROT0, "Sega", "The Ocean Hunter (Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1998, oceanhuna,  oceanhun, model3_20_5881, model3,   model3_state, init_oceanhun,  ROT0, "Sega", "The Ocean Hunter", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1998, skichamp,   0,        model3_20,      skichamp, model3_state, init_skichamp,  ROT0, "Sega", "Ski Champ", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1998, srally2,    0,        srally2,        scud,     model3_state, init_srally2,   ROT0, "Sega", "Sega Rally 2: Sega Rally Championship", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // No region specified or selectable
+GAME( 1998, srally2p,   srally2,  srally2,        scud,     model3_state, init_model3_20, ROT0, "Sega", "Sega Rally 2: Sega Rally Championship (prototype, 29 Dec 1997)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // need specific JTAG access patches
+GAME( 1998, srally2pa,  srally2,  srally2,        scud,     model3_state, init_model3_20, ROT0, "Sega", "Sega Rally 2: Sega Rally Championship (prototype, 8 Dec 1997)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // need specific JTAG access patches
+GAME( 1998, srally2dx,  srally2,  model3_20,      scud,     model3_state, init_model3_20, ROT0, "Sega", "Sega Rally 2: Sega Rally Championship Deluxe", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // need specific JTAG access patches
+GAME( 1998, von2,       0,        model3_20_5881, von2,     model3_state, init_von2,      ROT0, "Sega", "Cyber Troopers Virtual-On: Oratorio Tangram (Revision B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // No region specified or selectable
+GAME( 1998, von2a,      von2,     model3_20_5881, von2,     model3_state, init_von2,      ROT0, "Sega", "Cyber Troopers Virtual-On: Oratorio Tangram (Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // No region specified or selectable
+GAME( 1998, von2o,      von2,     model3_20_5881, von2,     model3_state, init_von2,      ROT0, "Sega", "Cyber Troopers Virtual-On: Oratorio Tangram", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // No region specified or selectable
+GAME( 1998, von254g,    von2,     model3_20_5881, von2,     model3_state, init_von2,      ROT0, "Sega", "Cyber Troopers Virtual-On: Oratorio Tangram M.S.B.S. ver 5.4", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // No region specified or selectable
+GAME( 1998, fvipers2,   0,        model3_20_5881, model3,   model3_state, init_vs299,     ROT0, "Sega", "Fighting Vipers 2 (Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1998, fvipers2o,  fvipers2, model3_20_5881, model3,   model3_state, init_vs299,     ROT0, "Sega", "Fighting Vipers 2", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1998, vs298,      0,        model3_20_5881, model3,   model3_state, init_vs298,     ROT0, "Sega", "Virtua Striker 2 '98 (Step 2.0)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1998, vs2v991,    0,        model3_20_5881, model3,   model3_state, init_vs299,     ROT0, "Sega", "Virtua Striker 2 '99.1 (Export, USA, Revision B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // shows Virtua Striker 2 Version '99.1 icon during demo
 GAME( 1998, vs299a,     vs2v991,  model3_20_5881, model3,   model3_state, init_vs299,     ROT0, "Sega", "Virtua Striker 2 '99 (Export, USA, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1998, vs299,      vs2v991,  model3_20_5881, model3,   model3_state, init_vs299,     ROT0, "Sega", "Virtua Striker 2 '99 (Export, USA)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1998, vs299j,     vs2v991,  model3_20_5881, model3,   model3_state, init_vs299,     ROT0, "Sega", "Virtua Striker 2 '99.1 (Japan, Revision B)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // shows Virtua Striker 2 Version '99.1 icon during demo
 
 /* Model 3 Step 2.1 */
-GAME( 1998, daytona2,   0,        daytona2,       daytona2, model3_state, init_daytona2,  ROT0, "Sega", "Daytona USA 2: Battle on the Edge (Japan, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1998, dayto2pe,   0,        daytona2,       daytona2, model3_state, init_dayto2pe,  ROT0, "Sega", "Daytona USA 2: Power Edition (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1998, daytona2,   0,        daytona2,       daytona2, model3_state, init_daytona2,  ROT0, "Sega", "Daytona USA 2: Battle on the Edge (Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1998, dayto2pe,   0,        daytona2,       daytona2, model3_state, init_dayto2pe,  ROT0, "Sega", "Daytona USA 2: Power Edition", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1998, dirtdvls,   0,        model3_21_5881, scud,     model3_state, init_dirtdvls,  ROT0, "Sega", "Dirt Devils (Export, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1998, dirtdvlsu,  dirtdvls, model3_21_5881, scud,     model3_state, init_dirtdvls,  ROT0, "Sega", "Dirt Devils (USA, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1998, dirtdvlsau, dirtdvls, model3_21_5881, scud,     model3_state, init_dirtdvls,  ROT0, "Sega", "Dirt Devils (Australia, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1998, dirtdvlsj,  dirtdvls, model3_21_5881, scud,     model3_state, init_dirtdvls,  ROT0, "Sega", "Dirt Devils (Japan, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1998, dirtdvlsg,  dirtdvls, model3_21_5881, scud,     model3_state, init_dirtdvls,  ROT0, "Sega", "Dirt Devils (Export, Ver. G?)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Game Assignments shows EXPORT
-GAME( 1998, swtrilgy,   0,        swtrilgy,       swtrilgy, model3_state, init_swtrilgy,  ROT0, "Sega / LucasArts", "Star Wars Trilogy Arcade (Export, Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1998, swtrilgya,  swtrilgy, swtrilgy,       swtrilgy, model3_state, init_swtrilga,  ROT0, "Sega / LucasArts", "Star Wars Trilogy Arcade (Export)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1998, swtrilgy,   0,        swtrilgy,       swtrilgy, model3_state, init_swtrilgy,  ROT0, "Sega / LucasArts", "Star Wars Trilogy Arcade (Revision A)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1998, swtrilgya,  swtrilgy, swtrilgy,       swtrilgy, model3_state, init_swtrilga,  ROT0, "Sega / LucasArts", "Star Wars Trilogy Arcade", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1998, swtrilgyp,  swtrilgy, swtrilgyp,      swtrilgy, model3_state, init_swtrilgyp, ROT0, "Sega / LucasArts", "Star Wars Trilogy Arcade (location test, 16.09.98)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND ) // Japan, USA, Australia, Korea, Export
-GAME( 1998, spikeout,   0,        spikeout,       model3,   model3_state, init_spikeout,  ROT0, "Sega", "Spikeout (Export, Revision C)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
-GAME( 1999, spikeofe,   0,        spikeout,       model3,   model3_state, init_spikeofe,  ROT0, "Sega", "Spikeout Final Edition (Export)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1998, spikeout,   0,        spikeout,       model3,   model3_state, init_spikeout,  ROT0, "Sega", "Spikeout (Revision C)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
+GAME( 1999, spikeofe,   0,        spikeout,       model3,   model3_state, init_spikeofe,  ROT0, "Sega", "Spikeout Final Edition", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1998, magtruck,   0,        model3_21_5881, eca,      model3_state, init_magtruck,  ROT0, "Sega", "Magical Truck Adventure (Export)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1999, eca,        0,        model3_21_5881, eca,      model3_state, init_eca,       ROT0, "Sega", "Emergency Call Ambulance (Export)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )
 GAME( 1999, ecaj,       eca,      model3_21_5881, eca,      model3_state, init_eca,       ROT0, "Sega", "Emergency Call Ambulance (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_SOUND )

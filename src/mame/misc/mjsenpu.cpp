@@ -290,7 +290,7 @@ static INPUT_PORTS_START( mjsenpu )
 	PORT_DIPSETTING(          0x00000030, DEF_STR(1C_1C) )                                          // 1:1
 	PORT_DIPSETTING(          0x00000020, DEF_STR(2C_1C) )                                          // 1:2
 	PORT_DIPSETTING(          0x00000010, DEF_STR(5C_1C) )                                          // 1:5
-	PORT_DIPSETTING(          0x00000000, "10 Coins/1 Credit" )                                     // 1:10
+	PORT_DIPSETTING(          0x00000000, DEF_STR(10C_1C) )                                         // 1:10
 	PORT_DIPNAME( 0x000000c0, 0x000000c0, "Jackpot Odds" )            PORT_DIPLOCATION("SW1:7,8")   // 大滿貫機率
 	PORT_DIPSETTING(          0x000000c0, "84%" )
 	PORT_DIPSETTING(          0x00000080, "88%" )
@@ -420,7 +420,7 @@ void mjsenpu_state::mjsenpu(machine_config &config)
 	HOPPER(config, m_hopper, attotime::from_msec(50));
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(512, 256);

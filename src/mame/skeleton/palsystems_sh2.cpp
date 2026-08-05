@@ -178,8 +178,20 @@ static INPUT_PORTS_START( mpoker2 )
 INPUT_PORTS_END
 
 
-// TODO
+static const gfx_layout gfx_8x8x16 =
+{
+	8,8,
+	RGN_FRAC(1,1),
+	8,
+	{ STEP8(0, 2) },
+	{ STEP8(0, 8*2) },
+	{ STEP8(0, 8*8*2) },
+	8*8*16
+};
+
+// TODO: only preliminary
 static GFXDECODE_START( gfx_palsystems_sh2 )
+	GFXDECODE_ENTRY( "gfx", 0, gfx_8x8x16, 0, 16 )
 GFXDECODE_END
 
 
@@ -188,7 +200,7 @@ void palsystems_sh2_state::palsystems_sh2(machine_config &config)
 	SH7042(config, m_maincpu, 12'000'000); // TODO: wrong, actually SH7044. Also wrong clock.
 	m_maincpu->set_addrmap(AS_PROGRAM, &palsystems_sh2_state::program_map);
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER)); // TODO
+	screen_device &screen(SCREEN(config, "screen")); // TODO
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(64*8, 64*8);

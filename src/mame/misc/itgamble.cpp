@@ -267,7 +267,7 @@ void itgamble_state::itgamble(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &itgamble_state::itgamble_map);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_screen_update(FUNC(itgamble_state::screen_update));
@@ -699,5 +699,5 @@ GAME( 2001, bowlroad14n, bowlroad, itgamble, itgamble, itgamble_state, empty_ini
 GAME( 2001, wcup14,      wcup,     itgamble, itgamble, itgamble_state, empty_init, ROT0, "Nazionale Elettronica", "World Cup (Ver 1.4)",                             MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 
 // hardware GIFE-001
-GAME( 2000, mnumber,     0,        mnumber,  itgamble, itgamble_state, empty_init, ROT0, "MM / BRL Bologna",      "Mystery Number",                                  MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
-GAME( 200?, gnumber,     0,        mnumber,  itgamble, itgamble_state, empty_init, ROT0, "MM / BRL Bologna",      "Golden Number",                                   MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+GAME( 2000, mnumber,     0,        mnumber,  itgamble, itgamble_state, empty_init, ROT0, "BRL Bologna",           "Mystery Number",                                  MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+GAME( 2000, gnumber,     0,        mnumber,  itgamble, itgamble_state, empty_init, ROT0, "BRL Bologna",           "Golden Number",                                   MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

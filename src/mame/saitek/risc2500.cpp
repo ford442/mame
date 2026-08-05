@@ -20,7 +20,8 @@ Hardware notes:
 
 *: Sold with 128KB RAM by default. This can be easily increased up to 2MB
 by the user(chesscomputer owner, but also the MAME user in this case).
-The manual also says that RAM is expandable.
+The manual also says that RAM is expandable. Although the hardware only
+supports 128KB, 512KB, or 2MB, the software also supports 256KB or 1MB.
 
 According to Saitek's repair manual, there is a GAL and a clock frequency
 divider chip, ROM access goes through it. This allows reading from slow EPROM
@@ -53,6 +54,7 @@ TODO:
 
 #include "emupal.h"
 #include "screen.h"
+#include "screen_svg.h"
 #include "speaker.h"
 
 // internal artwork
@@ -86,8 +88,8 @@ public:
 
 	DECLARE_INPUT_CHANGED_MEMBER(on_button);
 
-	void risc2500(machine_config &config);
-	void montreux(machine_config &config);
+	void risc2500(machine_config &config) ATTR_COLD;
+	void montreux(machine_config &config) ATTR_COLD;
 
 protected:
 	virtual void machine_start() override ATTR_COLD;
@@ -102,7 +104,7 @@ private:
 	required_device<sensorboard_device> m_board;
 	required_device<pwm_display_device> m_led_pwm;
 	required_device<sed1520_device> m_lcdc;
-	required_device<screen_device> m_screen;
+	required_device<screen_svg_device> m_screen;
 	required_device<dac_2bit_ones_complement_device> m_dac;
 	required_ioport_array<8> m_inputs;
 	output_finder<12, 7, 6> m_lcd_dmz;
@@ -119,11 +121,11 @@ private:
 
 	void risc2500_mem(address_map &map) ATTR_COLD;
 
-	u32 screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	void screen_svg_update(screen_svg_device &screen);
 	SED1520_UPDATE_CB(sed1520_update);
 
 	u32 input_r();
-	void control_w(u32 data);
+	void control_w(offs_t offset, u32 data, u32 mem_mask = ~0);
 	u32 rom_r(offs_t offset);
 	void power_off();
 
@@ -139,11 +141,6 @@ private:
 
 void risc2500_state::machine_start()
 {
-	m_lcd_dmz.resolve();
-	m_lcd_digit.resolve();
-	m_lcd_seg.resolve();
-	m_lcd_sym.resolve();
-
 	m_boot_timer = timer_alloc(FUNC(risc2500_state::disable_bootrom), this);
 	m_boot_view[1].install_ram(0, m_ram->size() - 1, m_ram->pointer());
 	m_nvram->set_base(m_ram->pointer(), m_ram->size());
@@ -166,20 +163,17 @@ void risc2500_state::machine_reset()
 	m_prev_cycle = m_maincpu->total_cycles();
 }
 
-
-
 /*******************************************************************************
     Video
 *******************************************************************************/
 
-u32 risc2500_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
-{
-	// forward to SED1520
-	return m_lcdc->screen_update(screen, m_screen->curbitmap().as_ind16(), cliprect);
-}
 
-SED1520_UPDATE_CB(risc2500_state::sed1520_update)
+void risc2500_state::screen_svg_update(screen_svg_device &screen)
 {
+	auto [static_drive, lcd_on, dram, start_line, adc, duty] = m_lcdc->render();
+	if (static_drive)
+		return;
+
 	for (int c = 0; c < 12; c++)
 	{
 		u8 data = 0;
@@ -211,10 +205,7 @@ SED1520_UPDATE_CB(risc2500_state::sed1520_update)
 
 	m_lcd_sym[12] = lcd_on ? BIT(dram[0x73], 0) : 0;
 	m_lcd_sym[13] = lcd_on ? BIT(dram[0x5a], 0) : 0;
-
-	return 0;
 }
-
 
 
 /*******************************************************************************
@@ -264,8 +255,11 @@ u32 risc2500_state::input_r()
 	return data;
 }
 
-void risc2500_state::control_w(u32 data)
+void risc2500_state::control_w(offs_t offset, u32 data, u32 mem_mask)
 {
+	if (mem_mask != 0xffffffff)
+		logerror("control_w unexpected mem_mask %08X\n", mem_mask);
+
 	// lcd
 	if (BIT(m_control & ~data, 27))
 	{
@@ -336,8 +330,8 @@ void risc2500_state::risc2500_mem(address_map &map)
 	map(0x00000000, 0x001fffff).view(m_boot_view);
 	m_boot_view[0](0x00000000, 0x0003ffff).r(FUNC(risc2500_state::rom_r));
 
-	map(0x01800000, 0x01800003).r(FUNC(risc2500_state::disable_bootrom_r));
 	map(0x01000000, 0x01000003).rw(FUNC(risc2500_state::input_r), FUNC(risc2500_state::control_w));
+	map(0x01800000, 0x01800003).r(FUNC(risc2500_state::disable_bootrom_r));
 	map(0x02000000, 0x0203ffff).r(FUNC(risc2500_state::rom_r));
 }
 
@@ -424,13 +418,11 @@ void risc2500_state::risc2500(machine_config &config)
 
 	// video hardware
 	SED1520(config, m_lcdc);
-	m_lcdc->set_screen_update_cb(FUNC(risc2500_state::sed1520_update));
 
-	SCREEN(config, m_screen, SCREEN_TYPE_SVG);
+	SCREEN_SVG(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_size(1920/5, 768/5);
-	m_screen->set_visarea_full();
-	m_screen->set_screen_update(FUNC(risc2500_state::screen_update));
+	m_screen->set_screen_svg_update(FUNC(risc2500_state::screen_svg_update));
 
 	PWM_DISPLAY(config, m_led_pwm).set_size(2, 8);
 	config.set_default_layout(layout_saitek_risc2500);
@@ -488,4 +480,4 @@ ROM_END
 SYST( 1992, risc2500,  0,        0,      risc2500, risc2500, risc2500_state, empty_init, "Saitek / Tasc", "Kasparov RISC 2500 (v1.04)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_TIMING )
 SYST( 1992, risc2500a, risc2500, 0,      risc2500, risc2500, risc2500_state, empty_init, "Saitek / Tasc", "Kasparov RISC 2500 (v1.03)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_TIMING )
 
-SYST( 1995, montreux,  0,        0,      montreux, montreux, risc2500_state, empty_init, "Saitek / Tasc", "Mephisto Montreux", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_TIMING ) // after Saitek bought Hegener + Glaser
+SYST( 1995, montreux,  0,        0,      montreux, montreux, risc2500_state, empty_init, "Saitek / Tasc", "Mephisto Montreux", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_TIMING ) // when H+G was a subsidiary of Saitek

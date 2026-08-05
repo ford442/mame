@@ -62,10 +62,7 @@ public:
 	zxbus_slot_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, T &&zxbus_tag, U &&slot_options, const char *dflt)
 		: zxbus_slot_device(mconfig, tag, owner, clock)
 	{
-		option_reset();
-		slot_options(*this);
-		set_default_option(dflt);
-		set_fixed(false);
+		set_options(std::forward<U>(slot_options), dflt, false);
 		m_zxbus_bus.set_tag(std::forward<T>(zxbus_tag));
 	}
 
@@ -83,16 +80,15 @@ DECLARE_DEVICE_TYPE(ZXBUS_SLOT, zxbus_slot_device)
 class zxbus_device : public device_t
 {
 public:
-	zxbus_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
+	zxbus_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock = 0);
 
-	template <typename T> void set_iospace(T &&tag, int spacenum) { m_iospace.set_tag(std::forward<T>(tag), spacenum); }
-	template<typename T> void install_device(offs_t addrstart, offs_t addrend, T &device, void (T::*map)(class address_map &map), u64 unitmask = ~u64(0))
+	void set_io_space(address_space_installer &io, address_space_installer &shadow_io)
 	{
-		m_iospace->install_device(addrstart, addrend, device, map, unitmask);
+		m_io = &io;
+		m_shadow_io = &shadow_io;
 	}
 
 	void add_slot(zxbus_slot_device &slot);
-	void install_shadow_io(memory_view::memory_view_entry &io_view);
 
 protected:
 	zxbus_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock);
@@ -100,8 +96,8 @@ protected:
 	virtual void device_start() override ATTR_COLD;
 
 private:
-	required_address_space m_iospace;
-	memory_view::memory_view_entry *m_shadow_io_view;
+	address_space_installer *m_io;
+	address_space_installer *m_shadow_io;
 
 	std::forward_list<zxbus_slot_device *> m_slot_list;
 };
@@ -114,7 +110,8 @@ class device_zxbus_card_interface : public device_interface
 	friend class zxbus_slot_device;
 
 public:
-	virtual void map_shadow_io(address_map &map) ATTR_COLD {}
+	virtual void io_map(address_map &map) ATTR_COLD {}
+	virtual void shadow_io_map(address_map &map) ATTR_COLD {}
 
 protected:
 	device_zxbus_card_interface(const machine_config &mconfig, device_t &device);

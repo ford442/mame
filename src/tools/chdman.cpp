@@ -103,6 +103,8 @@ constexpr bool OSD_PRINTF_VERBOSE = false;
 #define OPTION_OUTPUT "output"
 #define OPTION_OUTPUT_BIN "outputbin"
 #define OPTION_OUTPUT_SPLITBIN "splitbin"
+#define OPTION_OUTPUT_REMOVEPREGAP "removepregap"
+#define OPTION_OUTPUT_ADDPREGAP "addpregap"
 #define OPTION_OUTPUT_FORCE "force"
 #define OPTION_INPUT_START_BYTE "inputstartbyte"
 #define OPTION_INPUT_START_HUNK "inputstarthunk"
@@ -676,6 +678,8 @@ static const option_description s_options[] =
 	{ OPTION_OUTPUT,                "o",    true, " <filename>: output file name" },
 	{ OPTION_OUTPUT_BIN,            "ob",   true, " <filename>: output file name for binary data" },
 	{ OPTION_OUTPUT_SPLITBIN,       "sb",   false, ": output one binary file per track" },
+	{ OPTION_OUTPUT_REMOVEPREGAP,   "rp",   false, ": modify TOC to match TOSEC format (GD-ROM only)" },
+	{ OPTION_OUTPUT_ADDPREGAP,      "ap",   false, ": modify TOC to match Redump format (GD-ROM only)" },
 	{ OPTION_OUTPUT_FORCE,          "f",    false, ": force overwriting an existing file" },
 	{ OPTION_OUTPUT_PARENT,         "op",   true, " <filename>: parent file name for output CHD" },
 	{ OPTION_INPUT_START_BYTE,      "isb",  true, " <offset>: starting byte offset within the input" },
@@ -764,6 +768,7 @@ static const command_description s_commands[] =
 			REQUIRED OPTION_OUTPUT,
 			OPTION_OUTPUT_PARENT,
 			OPTION_OUTPUT_FORCE,
+			OPTION_OUTPUT_REMOVEPREGAP,
 			REQUIRED OPTION_INPUT,
 			OPTION_HUNK_SIZE,
 			OPTION_COMPRESSION,
@@ -832,6 +837,7 @@ static const command_description s_commands[] =
 			OPTION_OUTPUT_BIN,
 			OPTION_OUTPUT_SPLITBIN,
 			OPTION_OUTPUT_FORCE,
+			OPTION_OUTPUT_ADDPREGAP,
 			REQUIRED OPTION_INPUT,
 			OPTION_INPUT_PARENT,
 		}
@@ -917,19 +923,23 @@ static const command_description s_commands[] =
 // hard disk templates
 static const hd_template s_hd_templates[] =
 {
-	{ "Conner",     "CFA170A",    332, 16, 63, 512 }, //  163 MB
-	{ "Rodime",     "R0201",      321,  2, 16, 512 }, //    5 MB
-	{ "Rodime",     "R0202",      321,  4, 16, 512 }, //   10 MB
-	{ "Rodime",     "R0203",      321,  6, 16, 512 }, //   15 MB
-	{ "Rodime",     "R0204",      321,  8, 16, 512 }, //   20 MB
-	{ "Seagate",    "ST-213",     615,  2, 17, 512 }, //   10 MB
-	{ "Seagate",    "ST-225",     615,  4, 17, 512 }, //   20 MB
-	{ "Seagate",    "ST-251",     820,  6, 17, 512 }, //   40 MB
-	{ "Seagate",    "ST-3600N",  1877,  7, 76, 512 }, //  525 MB
-	{ "Maxtor",     "LXT-213S",  1314,  7, 53, 512 }, //  200 MB
-	{ "Maxtor",     "LXT-340S",  1574,  7, 70, 512 }, //  340 MB
-	{ "Maxtor",     "MXT-540SL", 2466,  7, 87, 512 }, //  540 MB
-	{ "Micropolis", "1528",      2094, 15, 83, 512 }, // 1342 MB
+	{ "Conner",     "CFA170A",               332, 16, 63, 512 }, //   163 MB, IDE (ATA)
+	{ "Rodime",     "R0201",                 321,  2, 16, 512 }, //     5 MB, ST-506/MFM
+	{ "Rodime",     "R0202",                 321,  4, 16, 512 }, //    10 MB, ST-506/MFM
+	{ "Rodime",     "R0203",                 321,  6, 16, 512 }, //    15 MB, ST-506/MFM
+	{ "Rodime",     "R0204",                 321,  8, 16, 512 }, //    20 MB, ST-506/MFM
+	{ "Seagate",    "ST-213",                615,  2, 17, 512 }, //    10 MB, ST-506/MFM
+	{ "Seagate",    "ST-225",                615,  4, 17, 512 }, //    20 MB, ST-506/MFM
+	{ "Seagate",    "ST-251",                820,  6, 17, 512 }, //    40 MB, ST-506/MFM
+	{ "Seagate",    "ST-3600N",             1877,  7, 76, 512 }, //   525 MB, SCSI
+	{ "Maxtor",     "LXT-213S",             1314,  7, 53, 512 }, //   200 MB, SCSI
+	{ "Maxtor",     "LXT-340S",             1574,  7, 70, 512 }, //   340 MB, SCSI
+	{ "Maxtor",     "MXT-540SL",            2466,  7, 87, 512 }, //   540 MB, SCSI
+	{ "Micropolis", "1528",                 2094, 15, 83, 512 }, //  1342 MB, SCSI-2
+	{ "Quantum",    "Fireball CR 4.3 AT",  14848,  9, 63, 512 }, //  4110 MB (4.3 GB), Ultra ATA/66 (ATA-5)
+	{ "Quantum",    "Fireball CR 6.4 AT",  13328, 15, 63, 512 }, //  6149 MB (6.4 GB), Ultra ATA/66 (ATA-5)
+	{ "Quantum",    "Fireball CR 8.4 AT",  16383, 16, 63, 512 }, //  8063 MB (8.4 GB), Ultra ATA/66 (ATA-5)
+	{ "Quantum",    "Fireball CR 13.0 AT", 25228, 16, 63, 512 }, // 12416 MB (13.0 GB), Ultra ATA/66 (ATA-5)
 };
 
 
@@ -1154,11 +1164,10 @@ static void guess_chs(
 
 
 //-------------------------------------------------
-//  parse_input_chd_parameters - parse the
-//  standard set of input CHD parameters
+//  parse_input_parent_chd - parse the parent CHD
 //-------------------------------------------------
 
-static void parse_input_chd_parameters(const parameters_map &params, chd_file &input_chd, chd_file &input_parent_chd, bool writeable = false)
+static void parse_input_parent_chd(const parameters_map &params, chd_file &input_parent_chd)
 {
 	// process input parent file
 	auto input_chd_parent_str = params.find(OPTION_INPUT_PARENT);
@@ -1168,6 +1177,18 @@ static void parse_input_chd_parameters(const parameters_map &params, chd_file &i
 		if (err)
 			report_error(1, "Error opening parent CHD file (%s): %s", *input_chd_parent_str->second, err.message());
 	}
+}
+
+
+//-------------------------------------------------
+//  parse_input_chd_parameters - parse the
+//  standard set of input CHD parameters
+//-------------------------------------------------
+
+static void parse_input_chd_parameters(const parameters_map &params, chd_file &input_chd, chd_file &input_parent_chd, bool writeable = false)
+{
+	// process input parent file
+	parse_input_parent_chd(params, input_parent_chd);
 
 	// process input file
 	auto input_chd_str = params.find(OPTION_INPUT);
@@ -1768,10 +1789,24 @@ static void do_info(parameters_map &params)
 
 static void do_verify(parameters_map &params)
 {
+	bool fix_sha1 = params.find(OPTION_FIX) != params.end();
 	// parse out input files
 	chd_file input_parent_chd;
 	chd_file input_chd;
-	parse_input_chd_parameters(params, input_chd, input_parent_chd);
+	parse_input_parent_chd(params, input_parent_chd);
+
+	// process input file
+	auto input_chd_str = params.find(OPTION_INPUT);
+	if (input_chd_str != params.end())
+	{
+		const uint32_t openflags = fix_sha1 ? (OPEN_FLAG_READ | OPEN_FLAG_WRITE) : OPEN_FLAG_READ;
+		util::core_file::ptr file;
+		std::error_condition err = util::core_file::open(*input_chd_str->second, openflags, file);
+		if (!err)
+			err = input_chd.open(std::move(file), false, input_parent_chd.opened() ? &input_parent_chd : nullptr);
+		if (err)
+			report_error(1, "Error opening CHD file (%s): %s", *input_chd_str->second, err.message());
+	}
 
 	// only makes sense for compressed CHDs with valid SHA-1's
 	if (!input_chd.compressed())
@@ -1793,7 +1828,7 @@ static void do_verify(parameters_map &params)
 		uint32_t bytes_to_read = (std::min<uint64_t>)(buffer.size(), input_chd.logical_bytes() - offset);
 		std::error_condition err = input_chd.read_bytes(offset, &buffer[0], bytes_to_read);
 		if (err)
-			report_error(1, "Error reading CHD file (%s): %s", *params.find(OPTION_INPUT)->second, err.message());
+			report_error(1, "Error reading CHD file (%s): %s", *input_chd_str->second, err.message());
 
 		// add to the checksum
 		rawsha1.append(&buffer[0], bytes_to_read);
@@ -1808,7 +1843,7 @@ static void do_verify(parameters_map &params)
 		util::stream_format(std::cerr, "              actual SHA1 = %s\n", computed_sha1.as_string());
 
 		// fix it if requested; this also fixes the overall one so we don't need to do any more
-		if (params.find(OPTION_FIX) != params.end())
+		if (fix_sha1)
 		{
 			std::error_condition err = input_chd.set_raw_sha1(computed_sha1);
 			if (err)
@@ -1832,9 +1867,8 @@ static void do_verify(parameters_map &params)
 				util::stream_format(std::cerr, "                  actual SHA1 = %s\n", computed_overall_sha1.as_string());
 
 				// fix it if requested
-				if (params.find(OPTION_FIX) != params.end())
+				if (fix_sha1)
 				{
-					input_chd.set_raw_sha1(computed_sha1);
 					std::error_condition err = input_chd.set_raw_sha1(computed_sha1);
 					if (err)
 						report_error(1, "Error updating SHA1: %s", err.message());
@@ -2146,6 +2180,25 @@ static void do_create_cd(parameters_map &params)
 		std::error_condition err = cdrom_file::parse_toc(*input_file_str->second, toc, track_info);
 		if (err)
 			report_error(1, "Error parsing input file (%s: %s)\n", *input_file_str->second, err.message());
+	}
+
+	bool is_gdrom = toc.flags & cdrom_file::CD_FLAG_GDROM;
+
+	if (is_gdrom)
+	{
+		bool is_removepregap = params.find(OPTION_OUTPUT_REMOVEPREGAP) != params.end();
+
+		if (is_removepregap)
+		{
+			std::error_condition err = cdrom_file::remove_pregap(toc, track_info);
+		
+			if (err)
+				report_error(1, "Error stripping pregap: (%s: %s)\n", *input_file_str->second, err.message());
+		}
+
+		std::error_condition err = cdrom_file::adjust_high_density_area(toc, track_info);
+		if (err)
+			report_error(1, "Error adjusting high density area: (%s: %s)\n", *input_file_str->second, err.message());
 	}
 
 	// process output CHD
@@ -2821,7 +2874,9 @@ static void do_extract_cd(parameters_map &params)
 				output_toc_file->printf("CD_ROM\n\n\n");
 		}
 
-		if (cdrom->is_gdrom() && mode == MODE_CUEBIN)
+		bool is_addpregap = cdrom->is_gdrom() && mode == MODE_CUEBIN && params.find(OPTION_OUTPUT_ADDPREGAP) != params.end();
+
+		if (is_addpregap)
 		{
 			// modify TOC to match Redump cue/bin format as best as possible
 			cdrom_file::toc *trackinfo = (cdrom_file::toc*)&toc;
@@ -3372,12 +3427,14 @@ static void do_dump_metadata(parameters_map &params)
 static void do_list_templates(parameters_map &params)
 {
 	util::stream_format(std::cout, "\n");
-	util::stream_format(std::cout, "ID  Manufacturer  Model           Cylinders  Heads  Sectors  Sector Size  Total Size\n");
-	util::stream_format(std::cout, "------------------------------------------------------------------------------------\n");
+	util::stream_format(std::cout, "ID  Manufacturer  Model               Cylinders  Heads  Sectors  Sector Size  Total Size\n");
+	util::stream_format(std::cout, "----------------------------------------------------------------------------------------\n");
 
 	for (int id = 0; id < std::size(s_hd_templates); id++)
 	{
-		util::stream_format(std::cout, "%2d  %-13s %-15s %9d  %5d  %7d  %11d  %7d MB\n",
+		uint32_t size = ((uint64_t)s_hd_templates[id].cylinders * s_hd_templates[id].heads * s_hd_templates[id].sectors * s_hd_templates[id].sector_size) / 1024 / 1024;
+
+		util::stream_format(std::cout, "%2d  %-13s %-19s %9d  %5d  %7d  %11d  %7d MB\n",
 			id,
 			s_hd_templates[id].manufacturer,
 			s_hd_templates[id].model,
@@ -3385,7 +3442,7 @@ static void do_list_templates(parameters_map &params)
 			s_hd_templates[id].heads,
 			s_hd_templates[id].sectors,
 			s_hd_templates[id].sector_size,
-			(s_hd_templates[id].cylinders * s_hd_templates[id].heads * s_hd_templates[id].sectors * s_hd_templates[id].sector_size) / 1024 / 1024
+			size
 		);
 	}
 }
