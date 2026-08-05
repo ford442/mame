@@ -377,8 +377,8 @@ isa16_wd90c10_romless_device::isa16_wd90c10_romless_device(const machine_config 
 void isa16_wd90c10_romless_device::device_add_mconfig(machine_config &config)
 {
 	isa16_wd90c11_lr_device::device_add_mconfig(config);
-	// unknown source, assume standard NTSC (divided internally)
-	// tested in Video mode
+	// clocked thru WD90C61-JE dual clock generator, assume standard NTSC (divided internally)
+	// tested in Video mode DIP
 	m_vga->set_vclk2(14'318'181);
 }
 
@@ -492,7 +492,7 @@ private:
 	std::unique_ptr<u8[]> m_sound_program;
 
 	bool m_z80_reset = false;
-	bool m_z80_busrq = false;
+	bool m_z80_busreq = false;
 	u32 m_z80_main_address = 0;
 
 	void flush_z80_state();
@@ -579,15 +579,15 @@ void teradrive_state::md_68k_map(address_map &map)
 			//printf("%04x %04x\n", data, mem_mask);
 			if (!ACCESSING_BITS_0_7)
 			{
-				m_z80_busrq = !!BIT(~data, 8);
+				m_z80_busreq = !!BIT(~data, 8);
 			}
 			else if (!ACCESSING_BITS_8_15)
 			{
-				m_z80_busrq = !!BIT(~data, 0);
+				m_z80_busreq = !!BIT(~data, 0);
 			}
 			else // word access
 			{
-				m_z80_busrq = !!BIT(~data, 8);
+				m_z80_busreq = !!BIT(~data, 8);
 			}
 			flush_z80_state();
 		})
@@ -696,10 +696,10 @@ void teradrive_state::md_cpu_space_map(address_map &map)
 void teradrive_state::flush_z80_state()
 {
 	m_mdz80cpu->set_input_line(INPUT_LINE_RESET, m_z80_reset ? ASSERT_LINE : CLEAR_LINE);
-	m_mdz80cpu->set_input_line(Z80_INPUT_LINE_BUSRQ, m_z80_busrq ? CLEAR_LINE : ASSERT_LINE);
+	m_mdz80cpu->set_input_line(Z80_INPUT_LINE_BUSREQ, m_z80_busreq ? CLEAR_LINE : ASSERT_LINE);
 	if (m_z80_reset)
 		m_opn->reset();
-	if (m_z80_reset || !m_z80_busrq)
+	if (m_z80_reset || !m_z80_busreq)
 		m_md_68k_sound_view.select(0);
 	else
 		m_md_68k_sound_view.disable();
@@ -750,7 +750,6 @@ void teradrive_state::md_z80_map(address_map &map)
 			address_space &space68k = m_md68kcpu->space();
 			u8 ret = space68k.read_byte(m_z80_main_address + offset);
 			return ret;
-
 		}),
 		NAME([this] (offs_t offset, u8 data) {
 			address_space &space68k = m_md68kcpu->space();
@@ -863,7 +862,7 @@ void teradrive_state::machine_start()
 	save_pointer(NAME(m_sound_program), 0x4000);
 
 	save_item(NAME(m_z80_reset));
-	save_item(NAME(m_z80_busrq));
+	save_item(NAME(m_z80_busreq));
 	save_item(NAME(m_z80_main_address));
 }
 
@@ -922,7 +921,7 @@ void teradrive_state::teradrive(machine_config &config)
 	m_chipset->spkr_callback().set(FUNC(teradrive_state::wd7600_spkr));
 
 	// on board devices
-	ISA16(config, m_isabus, 0);
+	ISA16(config, m_isabus);
 	m_isabus->set_memspace(m_x86cpu, AS_PROGRAM);
 	m_isabus->set_iospace(m_x86cpu, AS_IO);
 	m_isabus->iochck_callback().set(m_chipset, FUNC(wd7600_device::iochck_w));
@@ -994,7 +993,7 @@ void teradrive_state::teradrive(machine_config &config)
 	m_mdz80cpu->set_addrmap(AS_PROGRAM, &teradrive_state::md_z80_map);
 	m_mdz80cpu->set_addrmap(AS_IO, &teradrive_state::md_z80_io);
 
-	SCREEN(config, m_mdscreen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_mdscreen);
 	// NOTE: PAL is 423x312
 	m_mdscreen->set_raw(md_master_xtal / 8, 427, 0, 320, 262, 0, 224);
 	m_mdscreen->set_screen_update(FUNC(teradrive_state::md_screen_update));
@@ -1023,13 +1022,13 @@ void teradrive_state::teradrive(machine_config &config)
 	// TODO: gated thru VDP
 	hl.output_handler().set_inputline(m_md68kcpu, 2);
 
-	MEGADRIVE_IO_PORT(config, m_md_ioports[0], 0);
+	MEGADRIVE_IO_PORT(config, m_md_ioports[0]);
 	m_md_ioports[0]->hl_handler().set("hl", FUNC(input_merger_device::in_w<0>));
 
-	MEGADRIVE_IO_PORT(config, m_md_ioports[1], 0);
+	MEGADRIVE_IO_PORT(config, m_md_ioports[1]);
 	m_md_ioports[1]->hl_handler().set("hl", FUNC(input_merger_device::in_w<1>));
 
-	MEGADRIVE_IO_PORT(config, m_md_ioports[2], 0);
+	MEGADRIVE_IO_PORT(config, m_md_ioports[2]);
 	m_md_ioports[2]->hl_handler().set("hl", FUNC(input_merger_device::in_w<2>));
 
 	for (int N = 0; N < 3; N++)

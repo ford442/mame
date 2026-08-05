@@ -7,18 +7,21 @@ Driver provided by Paul Leaman
 
 Notes:
 
-The main board of Side Arms has an unpopulated position reserved for a
-8751 protection MCU.
+The main board of Side Arms has an unpopulated position reserved for a 8751
+protection MCU.
 
-Unknown PROMs are mostly used for timing. Only the first four sprite
-encoding parameters have been identified, the other 28(!) are
-believed to be line-buffer controls.
+Unknown PROMs are mostly used for timing. Only the first four sprite encoding
+parameters have been identified, the other 28(!) are believed to be line-buffer
+controls.
 
-A bootleg has been found that matches "sidearmsj" but with the
-starfield data ROM being half the size of the original one and
-containing its second half. Also, it seems that, as the original
-game it's currently emulated, it uses just the first half of the
-starfield ROM, so it's something worth checking.
+A bootleg has been found that matches "sidearmsj" but with the starfield data
+ROM being half the size of the original one and containing its second half.
+Also, it seems that, as the original game it's currently emulated, it uses just
+the first half of the starfield ROM, so it's something worth checking.
+
+TODO:
+- writing to the palette outside of the allowed time specified in the 16H PROM
+  will trigger a write error on SYSTEM port bit 2 (cleared by writing to 0xc803)
 
 ********************************************************************************
 
@@ -126,7 +129,6 @@ T-12 to T-15 - 27512 OTP EPROM (sprites)
 #include "sound/ymopm.h"
 #include "sound/ymopn.h"
 
-#include "screen.h"
 #include "speaker.h"
 
 void sidearms_state::machine_start()
@@ -139,11 +141,27 @@ void sidearms_state::bankswitch_w(uint8_t data)
 	membank("bank1")->set_entry(data & 0x07);
 }
 
+void sidearms_state::whizz_bankswitch_w(uint8_t data)
+{
+	membank("bank1")->set_entry(bitswap<2>(data,6,7));
+}
 
-// Turtle Ship input ports are rotated 90 degrees
+
+TIMER_DEVICE_CALLBACK_MEMBER(sidearms_state::scanline)
+{
+	const int scanline = param;
+
+	// 2 interrupts per frame, every 128 scanlines
+	if (scanline == 112 || scanline == 240)
+		m_maincpu->set_input_line(0, HOLD_LINE);
+}
+
+
 uint8_t sidearms_state::turtship_ports_r(offs_t offset)
 {
 	int res = 0;
+
+	// Turtle Ship input ports are rotated 90 degrees
 	for (int i = 0; i < 5; i++)
 		res |= ((m_ports[i].read_safe(0) >> offset) & 1) << i;
 
@@ -153,6 +171,7 @@ uint8_t sidearms_state::turtship_ports_r(offs_t offset)
 
 void sidearms_state::sidearms_map(address_map &map)
 {
+	map.unmap_value_high();
 	map(0x0000, 0x7fff).rom();
 	map(0x8000, 0xbfff).bankr("bank1");
 	map(0xc000, 0xc3ff).writeonly().w(m_palette, FUNC(palette_device::write8)).share("palette");
@@ -175,6 +194,7 @@ void sidearms_state::sidearms_map(address_map &map)
 
 void sidearms_state::turtship_map(address_map &map)
 {
+	map.unmap_value_high();
 	map(0x0000, 0x7fff).rom();
 	map(0x8000, 0xbfff).bankr("bank1");
 	map(0xc000, 0xcfff).ram();
@@ -206,21 +226,9 @@ void sidearms_state::sidearms_sound_map(address_map &map)
 
 /* Whizz */
 
-void sidearms_state::whizz_bankswitch_w(uint8_t data)
-{
-	int bank = 0;
-	switch (data & 0xC0)
-	{
-		case 0x00 : bank = 0;   break;
-		case 0x40 : bank = 2;   break;
-		case 0x80 : bank = 1;   break;
-		case 0xC0 : bank = 3;   break;
-	}
-	membank("bank1")->set_entry(bank);
-}
-
 void sidearms_state::whizz_map(address_map &map)
 {
+	map.unmap_value_high();
 	map(0x0000, 0x7fff).rom();
 	map(0x8000, 0xbfff).bankr("bank1");
 	map(0xc000, 0xc3ff).writeonly().w(m_palette, FUNC(palette_device::write8)).share("palette");
@@ -351,7 +359,7 @@ static INPUT_PORTS_START( turtship )
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_START1 )
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_START2 )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("screen", FUNC(screen_device::vblank))
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_SERVICE1 )
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_COIN1 )
@@ -430,7 +438,7 @@ static INPUT_PORTS_START( dyger )
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_START1 )
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_UNKNOWN )    /* seems to be 1-player only */
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("screen", FUNC(screen_device::vblank))
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_COIN1 )
@@ -678,18 +686,19 @@ void sidearms_state::sidearms(machine_config &config)
 	// basic machine hardware
 	Z80(config, m_maincpu, 16_MHz_XTAL / 2);
 	m_maincpu->set_addrmap(AS_PROGRAM, &sidearms_state::sidearms_map);
-	m_maincpu->set_vblank_int("screen", FUNC(sidearms_state::irq0_line_hold));
 
 	Z80(config, m_audiocpu, 16_MHz_XTAL / 4);
 	m_audiocpu->set_addrmap(AS_PROGRAM, &sidearms_state::sidearms_sound_map);
 
+	TIMER(config, "scantimer").configure_scanline(FUNC(sidearms_state::scanline), "screen", 112, 128);
+
 	// video hardware
 	BUFFERED_SPRITERAM8(config, m_spriteram);
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
-	screen.set_raw(16_MHz_XTAL / 2, 64*8, 8*8, (64-8)*8, 32*8, 2*8, 30*8);
-	screen.set_screen_update(FUNC(sidearms_state::screen_update));
-	screen.set_palette(m_palette);
+	SCREEN(config, m_screen);
+	m_screen->set_raw(16_MHz_XTAL / 2, 64*8, 8*8, (64-8)*8, 32*8, 2*8, 30*8);
+	m_screen->set_screen_update(FUNC(sidearms_state::screen_update));
+	m_screen->set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_sidearms);
 	PALETTE(config, m_palette).set_format(palette_device::xBRG_444, 1024);
@@ -718,18 +727,19 @@ void sidearms_state::turtship(machine_config &config)
 	// basic machine hardware
 	Z80(config, m_maincpu, 16_MHz_XTAL / 2);
 	m_maincpu->set_addrmap(AS_PROGRAM, &sidearms_state::turtship_map);
-	m_maincpu->set_vblank_int("screen", FUNC(sidearms_state::irq0_line_hold));
 
 	Z80(config, m_audiocpu, 16_MHz_XTAL / 4);
 	m_audiocpu->set_addrmap(AS_PROGRAM, &sidearms_state::sidearms_sound_map);
 
+	TIMER(config, "scantimer").configure_scanline(FUNC(sidearms_state::scanline), "screen", 112, 128);
+
 	// video hardware
 	BUFFERED_SPRITERAM8(config, m_spriteram);
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
-	screen.set_raw(16_MHz_XTAL / 2, 64*8, 8*8, (64-8)*8, 32*8, 2*8, 30*8); // 61.0338 Hz measured
-	screen.set_screen_update(FUNC(sidearms_state::screen_update));
-	screen.set_palette(m_palette);
+	SCREEN(config, m_screen);
+	m_screen->set_raw(16_MHz_XTAL / 2, 64*8, 8*8, (64-8)*8, 32*8, 2*8, 30*8); // 61.0338 Hz measured
+	m_screen->set_screen_update(FUNC(sidearms_state::screen_update));
+	m_screen->set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_turtship);
 	PALETTE(config, m_palette).set_format(palette_device::xBRG_444, 1024);
@@ -758,7 +768,6 @@ void sidearms_state::whizz(machine_config &config)
 	// basic machine hardware
 	Z80(config, m_maincpu, 16_MHz_XTAL / 2);
 	m_maincpu->set_addrmap(AS_PROGRAM, &sidearms_state::whizz_map);
-	m_maincpu->set_vblank_int("screen", FUNC(sidearms_state::irq0_line_hold));
 
 	Z80(config, m_audiocpu, 16_MHz_XTAL / 4);
 	m_audiocpu->set_addrmap(AS_PROGRAM, &sidearms_state::whizz_sound_map);
@@ -766,13 +775,15 @@ void sidearms_state::whizz(machine_config &config)
 
 	config.set_maximum_quantum(attotime::from_hz(60000));
 
+	TIMER(config, "scantimer").configure_scanline(FUNC(sidearms_state::scanline), "screen", 112, 128);
+
 	// video hardware
 	BUFFERED_SPRITERAM8(config, m_spriteram);
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
-	screen.set_raw(16_MHz_XTAL / 2, 64*8, 8*8, (64-8)*8, 32*8, 2*8, 30*8);
-	screen.set_screen_update(FUNC(sidearms_state::screen_update));
-	screen.set_palette(m_palette);
+	SCREEN(config, m_screen);
+	m_screen->set_raw(16_MHz_XTAL / 2, 64*8, 8*8, (64-8)*8, 32*8, 2*8, 30*8);
+	m_screen->set_screen_update(FUNC(sidearms_state::screen_update));
+	m_screen->set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_turtship);
 	PALETTE(config, m_palette).set_format(palette_device::xBRG_444, 1024);

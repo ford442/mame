@@ -97,6 +97,7 @@ drc_cache::drc_cache(std::size_t bytes) noexcept
 	, m_codegen(nullptr)
 	, m_size(bytes)
 	, m_rwx(false)
+	, m_invargen(false)
 	, m_max_temporary(0)
 	, m_flush_count(0)
 #if defined(MAME_DEBUG)
@@ -113,7 +114,7 @@ drc_cache::drc_cache(std::size_t bytes) noexcept
 #endif
 {
 	// alignment must be power of two
-	static_assert(!(CACHE_ALIGNMENT & (CACHE_ALIGNMENT - 1)));
+	static_assert(std::has_single_bit(CACHE_ALIGNMENT));
 
 	std::fill(std::begin(m_free), std::end(m_free), nullptr);
 	std::fill(std::begin(m_nearfree), std::end(m_nearfree), nullptr);
@@ -210,7 +211,7 @@ void drc_cache::allocate_cache(bool rwx)
 	}
 
 	// page size must be power of two, cache must be page-aligned
-	assert(!(m_cache->page_size() & (m_cache->page_size() - 1)));
+	assert(std::has_single_bit(m_cache->page_size()));
 	assert(!(uintptr_t(m_near) & (m_cache->page_size() - 1)));
 	assert(m_cache->page_size() >= CACHE_ALIGNMENT);
 }

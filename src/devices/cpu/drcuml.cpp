@@ -37,11 +37,13 @@
 #include "drcbearm64.h"
 #include "drcbec.h"
 #include "drcbex64.h"
-#include "drcbex86.h"
 
 #include "emuopts.h"
 
+#include <iostream>
 #include <fstream>
+#include <locale>
+#include <sstream>
 
 
 
@@ -58,21 +60,42 @@
 //**************************************************************************
 
 // determine the type of the native DRC, falling back to C
-#ifndef NATIVE_DRC
+#if !defined(NATIVE_DRC)
 #if !defined(MAME_NOASM) && (defined(__x86_64__) || defined(_M_X64))
 #define NATIVE_DRC drcbe_x64
-#elif !defined(MAME_NOASM) && (defined(__i386__) || defined(_M_IX86))
-#define NATIVE_DRC drcbe_x86
 #elif !defined(MAME_NOASM) && (defined(__aarch64__) || defined(_M_ARM64))
 #define NATIVE_DRC drcbe_arm64
 #else
 #define NATIVE_DRC drcbe_c
 #endif
-#endif
+#endif // !defined(NATIVE_DRC)
 
 #define MAKE_DRCBE_IMPL(name) make_##name
 #define MAKE_DRCBE(name) MAKE_DRCBE_IMPL(name)
 #define make_drcbe_native MAKE_DRCBE(NATIVE_DRC)
+
+
+
+namespace {
+
+std::string uml_log_name(device_t &device)
+{
+	std::string tag = device.tag();
+	for (auto &ch : tag)
+	{
+		if (':' == ch)
+			ch = '_';
+	}
+	std::ostringstream str;
+	str.imbue(std::locale::classic());
+	str << "drcuml_" << device.shortname();
+	if ('_' != tag[0])
+		str << '_';
+	str << tag << ".asm";
+	return std::move(str).str();
+}
+
+} // anonymous namespace
 
 
 
@@ -128,19 +151,22 @@ drcbe_interface::~drcbe_interface()
 //  drcuml_state - constructor
 //-------------------------------------------------
 
-drcuml_state::drcuml_state(device_t &device, drc_cache &cache, u32 flags, int modes, int addrbits, int ignorebits)
+drcuml_state::drcuml_state(device_t &device, drc_cache &cache, u32 flags, int modes, int addrbits, int ignorebits, u32 max_sequence_length)
 	: m_device(device)
 	, m_cache(cache)
+	, m_max_sequence_length(max_sequence_length)
 	, m_beintf(device.machine().options().drc_use_c()
 			? drc::make_drcbe_c(*this, device, cache, flags, modes, addrbits, ignorebits)
 			: drc::make_drcbe_native(*this, device, cache, flags, modes, addrbits, ignorebits))
 	, m_umllog(device.machine().options().drc_log_uml()
-			? new std::ofstream(util::string_format("drcuml_%s.asm", device.shortname()))
+			? new std::ofstream(uml_log_name(device))
 			: nullptr)
 	, m_blocklist()
 	, m_handlelist()
 	, m_symlist()
 {
+	if (m_umllog)
+		m_umllog->imbue(std::locale::classic());
 }
 
 

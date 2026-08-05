@@ -95,7 +95,7 @@ This is a legacy core, all game based notes are for a future device rewrite.
 Please don't remove them if for no reason you truly want to mess with this.
 -------------------------- WARNING WARNING WARNING --------------------------
 
-Framebuffer todo:
+Framebuffer TODO:
 - finish manual erase
 - add proper framebuffer erase
 - 8 bpp support - now we always draw as 16 bpp, but this is not a problem since
@@ -106,6 +106,8 @@ Framebuffer todo:
 
 #include "emu.h"
 #include "saturn.h"
+
+#include "input.h" // for video debug keys
 
 #define LOG_VDP2 (1U << 1)
 #define LOG_ROZ  (1U << 2)
@@ -259,8 +261,8 @@ uint16_t saturn_state::vdp1_regs_r(offs_t offset)
 			return 0;
 		case 0x10/2:
 			break;
-		case 0x12/2: return m_vdp1.lopr;
-		case 0x14/2: return m_vdp1.copr;
+		case 0x12/2: return m_vdp1_legacy.lopr;
+		case 0x14/2: return m_vdp1_legacy.copr;
 		/* MODR register, read register for the other VDP1 regs
 		   (Shienryu SS version abuses of this during intro) */
 		case 0x16/2:
@@ -272,8 +274,8 @@ uint16_t saturn_state::vdp1_regs_r(offs_t offset)
 			modr |= VDP1_DIE << 6; // DIE
 			modr |= VDP1_DIL << 5; // DIL
 			modr |= VDP1_FCM << 4; //FCM
-			modr |= VDP1_VBE << 3; //VBE
-			modr |= VDP1_TVM & 7; //TVM
+			modr |= VDP1_VBE() << 3; //VBE
+			modr |= VDP1_TVM() & 7; //TVM
 
 			return modr;
 		default:
@@ -291,27 +293,27 @@ void saturn_state::vdp1_clear_framebuffer( int which_framebuffer )
 {
 	int start_x, end_x, start_y, end_y;
 
-	start_x = VDP1_EWLR_X1 * ((VDP1_TVM & 1) ? 16 : 8);
-	start_y = VDP1_EWLR_Y1 * (m_vdp1.framebuffer_double_interlace+1);
-	end_x = VDP1_EWRR_X3 * ((VDP1_TVM & 1) ? 16 : 8);
-	end_y = (VDP1_EWRR_Y3+1) * (m_vdp1.framebuffer_double_interlace+1);
-//  popmessage("%d %d %d %d %d",VDP1_EWLR_X1,VDP1_EWLR_Y1,VDP1_EWRR_X3,VDP1_EWRR_Y3,m_vdp1.framebuffer_double_interlace);
+	start_x = VDP1_EWLR_X1 * ((VDP1_TVM() & 1) ? 16 : 8);
+	start_y = VDP1_EWLR_Y1 * (m_vdp1_legacy.framebuffer_double_interlace+1);
+	end_x = VDP1_EWRR_X3 * ((VDP1_TVM() & 1) ? 16 : 8);
+	end_y = (VDP1_EWRR_Y3+1) * (m_vdp1_legacy.framebuffer_double_interlace+1);
+//  popmessage("%d %d %d %d %d",VDP1_EWLR_X1,VDP1_EWLR_Y1,VDP1_EWRR_X3,VDP1_EWRR_Y3,m_vdp1_legacy.framebuffer_double_interlace);
 
-	if(VDP1_TVM & 1)
+	if(VDP1_TVM() & 1)
 	{
 		for(int y=start_y;y<end_y;y++)
 			for(int x=start_x;x<end_x;x++)
-				m_vdp1.framebuffer[ which_framebuffer ][((x&1023)+(y&511)*1024)] = m_vdp1.ewdr;
+				m_vdp1_legacy.framebuffer[ which_framebuffer ][((x&1023)+(y&511)*1024)] = m_vdp1_legacy.ewdr;
 	}
 	else
 	{
 		for(int y=start_y;y<end_y;y++)
 			for(int x=start_x;x<end_x;x++)
-				m_vdp1.framebuffer[ which_framebuffer ][((x&511)+(y&511)*512)] = m_vdp1.ewdr;
+				m_vdp1_legacy.framebuffer[ which_framebuffer ][((x&511)+(y&511)*512)] = m_vdp1_legacy.ewdr;
 	}
 
-	if ( VDP1_LOG ) logerror( "Clearing %d framebuffer\n", m_vdp1.framebuffer_current_draw );
-//  memset( m_vdp1.framebuffer[ which_framebuffer ], m_vdp1.ewdr, 1024 * 256 * sizeof(uint16_t) * 2 );
+	if ( VDP1_LOG ) logerror( "Clearing %d framebuffer\n", m_vdp1_legacy.framebuffer_current_draw );
+//  memset( m_vdp1_legacy.framebuffer[ which_framebuffer ], m_vdp1_legacy.ewdr, 1024 * 256 * sizeof(uint16_t) * 2 );
 }
 
 
@@ -319,74 +321,74 @@ void saturn_state::vdp1_prepare_framebuffers()
 {
 	int i,rowsize;
 
-	rowsize = m_vdp1.framebuffer_width;
-	if ( m_vdp1.framebuffer_current_draw == 0 )
+	rowsize = m_vdp1_legacy.framebuffer_width;
+	if ( m_vdp1_legacy.framebuffer_current_draw == 0 )
 	{
-		for ( i = 0; i < m_vdp1.framebuffer_height; i++ )
+		for ( i = 0; i < m_vdp1_legacy.framebuffer_height; i++ )
 		{
-			m_vdp1.framebuffer_draw_lines[i] = &m_vdp1.framebuffer[0][ i * rowsize ];
-			m_vdp1.framebuffer_display_lines[i] = &m_vdp1.framebuffer[1][ i * rowsize ];
+			m_vdp1_legacy.framebuffer_draw_lines[i] = &m_vdp1_legacy.framebuffer[0][ i * rowsize ];
+			m_vdp1_legacy.framebuffer_display_lines[i] = &m_vdp1_legacy.framebuffer[1][ i * rowsize ];
 		}
 		for ( ; i < 512; i++ )
 		{
-			m_vdp1.framebuffer_draw_lines[i] = &m_vdp1.framebuffer[0][0];
-			m_vdp1.framebuffer_display_lines[i] = &m_vdp1.framebuffer[1][0];
+			m_vdp1_legacy.framebuffer_draw_lines[i] = &m_vdp1_legacy.framebuffer[0][0];
+			m_vdp1_legacy.framebuffer_display_lines[i] = &m_vdp1_legacy.framebuffer[1][0];
 		}
 	}
 	else
 	{
-		for ( i = 0; i < m_vdp1.framebuffer_height; i++ )
+		for ( i = 0; i < m_vdp1_legacy.framebuffer_height; i++ )
 		{
-			m_vdp1.framebuffer_draw_lines[i] = &m_vdp1.framebuffer[1][ i * rowsize ];
-			m_vdp1.framebuffer_display_lines[i] = &m_vdp1.framebuffer[0][ i * rowsize ];
+			m_vdp1_legacy.framebuffer_draw_lines[i] = &m_vdp1_legacy.framebuffer[1][ i * rowsize ];
+			m_vdp1_legacy.framebuffer_display_lines[i] = &m_vdp1_legacy.framebuffer[0][ i * rowsize ];
 		}
 		for ( ; i < 512; i++ )
 		{
-			m_vdp1.framebuffer_draw_lines[i] = &m_vdp1.framebuffer[1][0];
-			m_vdp1.framebuffer_display_lines[i] = &m_vdp1.framebuffer[0][0];
+			m_vdp1_legacy.framebuffer_draw_lines[i] = &m_vdp1_legacy.framebuffer[1][0];
+			m_vdp1_legacy.framebuffer_display_lines[i] = &m_vdp1_legacy.framebuffer[0][0];
 		}
 
 	}
 
 	for ( ; i < 512; i++ )
 	{
-		m_vdp1.framebuffer_draw_lines[i] = &m_vdp1.framebuffer[0][0];
-		m_vdp1.framebuffer_display_lines[i] = &m_vdp1.framebuffer[1][0];
+		m_vdp1_legacy.framebuffer_draw_lines[i] = &m_vdp1_legacy.framebuffer[0][0];
+		m_vdp1_legacy.framebuffer_display_lines[i] = &m_vdp1_legacy.framebuffer[1][0];
 	}
 
 }
 
 void saturn_state::vdp1_change_framebuffers()
 {
-	m_vdp1.framebuffer_current_display ^= 1;
-	m_vdp1.framebuffer_current_draw ^= 1;
+	m_vdp1_legacy.framebuffer_current_display ^= 1;
+	m_vdp1_legacy.framebuffer_current_draw ^= 1;
 	// "this bit is reset to 0 when the frame buffers are changed"
-	CEF_0;
-	if ( VDP1_LOG ) logerror( "Changing framebuffers: %d - draw, %d - display\n", m_vdp1.framebuffer_current_draw, m_vdp1.framebuffer_current_display );
+	CEF_0();
+	if ( VDP1_LOG ) logerror( "Changing framebuffers: %d - draw, %d - display\n", m_vdp1_legacy.framebuffer_current_draw, m_vdp1_legacy.framebuffer_current_display );
 	vdp1_prepare_framebuffers();
 }
 
 void saturn_state::vdp1_set_framebuffer_config()
 {
-	if ( m_vdp1.framebuffer_mode == VDP1_TVM &&
-			m_vdp1.framebuffer_double_interlace == VDP1_DIE ) return;
+	if ( m_vdp1_legacy.framebuffer_mode == VDP1_TVM() &&
+			m_vdp1_legacy.framebuffer_double_interlace == VDP1_DIE ) return;
 
 	if ( VDP1_LOG ) logerror( "Setting framebuffer config\n" );
-	m_vdp1.framebuffer_mode = VDP1_TVM;
-	m_vdp1.framebuffer_double_interlace = VDP1_DIE;
-	switch( m_vdp1.framebuffer_mode )
+	m_vdp1_legacy.framebuffer_mode = VDP1_TVM();
+	m_vdp1_legacy.framebuffer_double_interlace = VDP1_DIE;
+	switch( m_vdp1_legacy.framebuffer_mode )
 	{
-		case 0: m_vdp1.framebuffer_width = 512; m_vdp1.framebuffer_height = 256; break;
-		case 1: m_vdp1.framebuffer_width = 1024; m_vdp1.framebuffer_height = 256; break;
-		case 2: m_vdp1.framebuffer_width = 512; m_vdp1.framebuffer_height = 256; break;
-		case 3: m_vdp1.framebuffer_width = 512; m_vdp1.framebuffer_height = 512; break;
-		case 4: m_vdp1.framebuffer_width = 512; m_vdp1.framebuffer_height = 256; break;
-		default: logerror( "Invalid framebuffer config %x\n", VDP1_TVM ); m_vdp1.framebuffer_width = 512; m_vdp1.framebuffer_height = 256; break;
+		case 0: m_vdp1_legacy.framebuffer_width = 512; m_vdp1_legacy.framebuffer_height = 256; break;
+		case 1: m_vdp1_legacy.framebuffer_width = 1024; m_vdp1_legacy.framebuffer_height = 256; break;
+		case 2: m_vdp1_legacy.framebuffer_width = 512; m_vdp1_legacy.framebuffer_height = 256; break;
+		case 3: m_vdp1_legacy.framebuffer_width = 512; m_vdp1_legacy.framebuffer_height = 512; break;
+		case 4: m_vdp1_legacy.framebuffer_width = 512; m_vdp1_legacy.framebuffer_height = 256; break;
+		default: logerror( "Invalid framebuffer config %x\n", VDP1_TVM() ); m_vdp1_legacy.framebuffer_width = 512; m_vdp1_legacy.framebuffer_height = 256; break;
 	}
-	if ( VDP1_DIE ) m_vdp1.framebuffer_height *= 2; /* double interlace */
+	if ( VDP1_DIE ) m_vdp1_legacy.framebuffer_height *= 2; /* double interlace */
 
-	m_vdp1.framebuffer_current_draw = 0;
-	m_vdp1.framebuffer_current_display = 1;
+	m_vdp1_legacy.framebuffer_current_draw = 0;
+	m_vdp1_legacy.framebuffer_current_display = 1;
 	vdp1_prepare_framebuffers();
 }
 
@@ -398,16 +400,16 @@ void saturn_state::vdp1_regs_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 	{
 		case 0x00/2:
 			vdp1_set_framebuffer_config();
-			if ( VDP1_LOG ) logerror( "VDP1: Access to register TVMR = %1X\n", VDP1_TVMR );
+			if ( VDP1_LOG ) logerror( "VDP1: Access to register TVMR = %1X\n", data );
 
 			break;
 		case 0x02/2:
 			vdp1_set_framebuffer_config();
-			if ( VDP1_LOG ) logerror( "VDP1: Access to register FBCR = %1X\n", VDP1_FBCR );
-			m_vdp1.fbcr_accessed = 1;
+			if ( VDP1_LOG ) logerror( "VDP1: Access to register FBCR = %1X\n", data );
+			m_vdp1_legacy.fbcr_accessed = 1;
 			break;
 		case 0x04/2:
-			if ( VDP1_LOG ) logerror( "VDP1: Access to register PTMR = %1X\n", VDP1_PTM );
+			if ( VDP1_LOG ) logerror( "VDP1: Access to register PTMR = %1X\n", data );
 			if ( VDP1_PTMR == 1 )
 				vdp1_process_list();
 
@@ -415,7 +417,7 @@ void saturn_state::vdp1_regs_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 		case 0x06/2:
 			if ( VDP1_LOG ) logerror( "VDP1: Erase data set %08X\n", data );
 
-			m_vdp1.ewdr = VDP1_EWDR;
+			m_vdp1_legacy.ewdr = VDP1_EWDR;
 			break;
 		case 0x08/2:
 			if ( VDP1_LOG ) logerror( "VDP1: Erase upper-left coord set: %08X\n", data );
@@ -428,7 +430,7 @@ void saturn_state::vdp1_regs_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 			if ( VDP1_LOG ) logerror( "VDP1: Draw forced termination register write: %08X %08X\n", offset*2, data );
 			break;
 		default:
-			printf("Warning: write to unknown VDP1 reg %08x %08x\n",offset*2,data);
+			logerror("Warning: write to unknown VDP1 reg %08x %08x\n",offset*2,data);
 			break;
 	}
 
@@ -442,7 +444,7 @@ uint32_t saturn_state::vdp1_vram_r(offs_t offset)
 
 void saturn_state::vdp1_vram_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
-	uint8_t *vdp1 = m_vdp1.gfx_decode.get();
+	uint8_t *vdp1 = m_vdp1_legacy.gfx_decode.get();
 
 	COMBINE_DATA (&m_vdp1_vram[offset]);
 
@@ -462,29 +464,29 @@ void saturn_state::vdp1_vram_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 void saturn_state::vdp1_framebuffer0_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	//popmessage ("STV VDP1 Framebuffer 0 WRITE offset %08x data %08x",offset, data);
-	if ( VDP1_TVM & 1 )
+	if ( VDP1_TVM() & 1 )
 	{
 		/* 8-bit mode */
 		//printf("VDP1 8-bit mode %08x %02x\n",offset,data);
 		if ( ACCESSING_BITS_24_31 )
 		{
-			m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2] &= 0x00ff;
-			m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2] |= data & 0xff00;
+			m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2] &= 0x00ff;
+			m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2] |= data & 0xff00;
 		}
 		if ( ACCESSING_BITS_16_23 )
 		{
-			m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2] &= 0xff00;
-			m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2] |= data & 0x00ff;
+			m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2] &= 0xff00;
+			m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2] |= data & 0x00ff;
 		}
 		if ( ACCESSING_BITS_8_15 )
 		{
-			m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2+1] &= 0x00ff;
-			m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2+1] |= data & 0xff00;
+			m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2+1] &= 0x00ff;
+			m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2+1] |= data & 0xff00;
 		}
 		if ( ACCESSING_BITS_0_7 )
 		{
-			m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2+1] &= 0xff00;
-			m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2+1] |= data & 0x00ff;
+			m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2+1] &= 0xff00;
+			m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2+1] |= data & 0x00ff;
 		}
 	}
 	else
@@ -492,11 +494,11 @@ void saturn_state::vdp1_framebuffer0_w(offs_t offset, uint32_t data, uint32_t me
 		/* 16-bit mode */
 		if ( ACCESSING_BITS_16_31 )
 		{
-			m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2] = (data >> 16) & 0xffff;
+			m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2] = (data >> 16) & 0xffff;
 		}
 		if ( ACCESSING_BITS_0_15 )
 		{
-			m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2+1] = data & 0xffff;
+			m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2+1] = data & 0xffff;
 		}
 	}
 }
@@ -505,29 +507,29 @@ uint32_t saturn_state::vdp1_framebuffer0_r(offs_t offset, uint32_t mem_mask)
 {
 	uint32_t result = 0;
 	//popmessage ("STV VDP1 Framebuffer 0 READ offset %08x",offset);
-	if ( VDP1_TVM & 1 )
+	if ( VDP1_TVM() & 1 )
 	{
 		/* 8-bit mode */
 		//printf("VDP1 8-bit mode %08x\n",offset);
 		if ( ACCESSING_BITS_24_31 )
-			result |= ((m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2] & 0xff00) << 16);
+			result |= ((m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2] & 0xff00) << 16);
 		if ( ACCESSING_BITS_16_23 )
-			result |= ((m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2] & 0x00ff) << 16);
+			result |= ((m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2] & 0x00ff) << 16);
 		if ( ACCESSING_BITS_8_15 )
-			result |= ((m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2+1] & 0xff00));
+			result |= ((m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2+1] & 0xff00));
 		if ( ACCESSING_BITS_0_7 )
-			result |= ((m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2+1] & 0x00ff));
+			result |= ((m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2+1] & 0x00ff));
 	}
 	else
 	{
 		/* 16-bit mode */
 		if ( ACCESSING_BITS_16_31 )
 		{
-			result |= (m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2] << 16);
+			result |= (m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2] << 16);
 		}
 		if ( ACCESSING_BITS_0_15 )
 		{
-			result |= (m_vdp1.framebuffer[m_vdp1.framebuffer_current_draw][offset*2+1]);
+			result |= (m_vdp1_legacy.framebuffer[m_vdp1_legacy.framebuffer_current_draw][offset*2+1]);
 		}
 
 	}
@@ -954,17 +956,17 @@ void saturn_state::drawpixel_poly(int x, int y, int patterndata, int offsetcnt)
 	if(x >= 1024 || y >= 512)
 		return;
 
-	m_vdp1.framebuffer_draw_lines[y][x] = current_sprite.CMDCOLR;
+	m_vdp1_legacy.framebuffer_draw_lines[y][x] = current_sprite.CMDCOLR;
 }
 
 void saturn_state::drawpixel_8bpp_trans(int x, int y, int patterndata, int offsetcnt)
 {
 	uint16_t pix;
 
-	pix = m_vdp1.gfx_decode[patterndata+offsetcnt] & 0xff;
+	pix = m_vdp1_legacy.gfx_decode[patterndata+offsetcnt] & 0xff;
 	if ( pix != 0 )
 	{
-		m_vdp1.framebuffer_draw_lines[y][x] = pix | m_sprite_colorbank;
+		m_vdp1_legacy.framebuffer_draw_lines[y][x] = pix | m_sprite_colorbank;
 	}
 }
 
@@ -972,19 +974,19 @@ void saturn_state::drawpixel_4bpp_notrans(int x, int y, int patterndata, int off
 {
 	uint16_t pix;
 
-	pix = m_vdp1.gfx_decode[patterndata+offsetcnt/2];
+	pix = m_vdp1_legacy.gfx_decode[patterndata+offsetcnt/2];
 	pix = offsetcnt&1 ? (pix & 0x0f) : ((pix & 0xf0)>>4);
-	m_vdp1.framebuffer_draw_lines[y][x] = pix | m_sprite_colorbank;
+	m_vdp1_legacy.framebuffer_draw_lines[y][x] = pix | m_sprite_colorbank;
 }
 
 void saturn_state::drawpixel_4bpp_trans(int x, int y, int patterndata, int offsetcnt)
 {
 	uint16_t pix;
 
-	pix = m_vdp1.gfx_decode[patterndata+offsetcnt/2];
+	pix = m_vdp1_legacy.gfx_decode[patterndata+offsetcnt/2];
 	pix = offsetcnt&1 ? (pix & 0x0f) : ((pix & 0xf0)>>4);
 	if ( pix != 0 )
-		m_vdp1.framebuffer_draw_lines[y][x] = pix | m_sprite_colorbank;
+		m_vdp1_legacy.framebuffer_draw_lines[y][x] = pix | m_sprite_colorbank;
 }
 
 void saturn_state::drawpixel_generic(int x, int y, int patterndata, int offsetcnt)
@@ -1025,7 +1027,7 @@ void saturn_state::drawpixel_generic(int x, int y, int patterndata, int offsetcn
 		{
 			case 0x0000: // mode 0 16 colour bank mode (4bits) (hanagumi blocks)
 				// most of the shienryu sprites use this mode
-				raw = m_vdp1.gfx_decode[(patterndata+offsetcnt/2) & 0xfffff];
+				raw = m_vdp1_legacy.gfx_decode[(patterndata+offsetcnt/2) & 0xfffff];
 				raw = offsetcnt&1 ? (raw & 0x0f) : ((raw & 0xf0)>>4);
 				pix = raw+((current_sprite.CMDCOLR&0xfff0));
 				//mode = 0;
@@ -1034,7 +1036,7 @@ void saturn_state::drawpixel_generic(int x, int y, int patterndata, int offsetcn
 				break;
 			case 0x0008: // mode 1 16 colour lookup table mode (4bits)
 				// shienryu explosions (and some enemies) use this mode
-				raw = m_vdp1.gfx_decode[(patterndata+offsetcnt/2) & 0xfffff];
+				raw = m_vdp1_legacy.gfx_decode[(patterndata+offsetcnt/2) & 0xfffff];
 				raw = offsetcnt&1 ? (raw & 0x0f) : ((raw & 0xf0)>>4);
 				pix = raw&1 ?
 				((((m_vdp1_vram[(((current_sprite.CMDCOLR&0xffff)*8)>>2)+((raw&0xfffe)/2)])) & 0x0000ffff) >> 0):
@@ -1044,7 +1046,7 @@ void saturn_state::drawpixel_generic(int x, int y, int patterndata, int offsetcn
 				endcode = 0xf;
 				break;
 			case 0x0010: // mode 2 64 colour bank mode (8bits) (character select portraits on hanagumi)
-				raw = m_vdp1.gfx_decode[(patterndata+offsetcnt) & 0xfffff] & 0xff;
+				raw = m_vdp1_legacy.gfx_decode[(patterndata+offsetcnt) & 0xfffff] & 0xff;
 				//mode = 2;
 				pix = raw+(current_sprite.CMDCOLR&0xffc0);
 				transpen = 0;
@@ -1054,21 +1056,21 @@ void saturn_state::drawpixel_generic(int x, int y, int patterndata, int offsetcn
 				// sasissu: racing stage background clouds
 				break;
 			case 0x0018: // mode 3 128 colour bank mode (8bits) (little characters on hanagumi use this mode)
-				raw = m_vdp1.gfx_decode[(patterndata+offsetcnt) & 0xfffff] & 0xff;
+				raw = m_vdp1_legacy.gfx_decode[(patterndata+offsetcnt) & 0xfffff] & 0xff;
 				pix = raw+(current_sprite.CMDCOLR&0xff80);
 				transpen = 0;
 				endcode = 0xff;
 				//mode = 3;
 				break;
 			case 0x0020: // mode 4 256 colour bank mode (8bits) (hanagumi title)
-				raw = m_vdp1.gfx_decode[(patterndata+offsetcnt) & 0xfffff] & 0xff;
+				raw = m_vdp1_legacy.gfx_decode[(patterndata+offsetcnt) & 0xfffff] & 0xff;
 				pix = raw+(current_sprite.CMDCOLR&0xff00);
 				transpen = 0;
 				endcode = 0xff;
 				//mode = 4;
 				break;
 			case 0x0028: // mode 5 32,768 colour RGB mode (16bits)
-				raw = m_vdp1.gfx_decode[(patterndata+offsetcnt*2+1) & 0xfffff] | (m_vdp1.gfx_decode[(patterndata+offsetcnt*2) & 0xfffff]<<8);
+				raw = m_vdp1_legacy.gfx_decode[(patterndata+offsetcnt*2+1) & 0xfffff] | (m_vdp1_legacy.gfx_decode[(patterndata+offsetcnt*2) & 0xfffff]<<8);
 				//mode = 5;
 				// TODO: 0x1-0x7ffe reserved (color bank)
 				pix = raw;
@@ -1078,7 +1080,7 @@ void saturn_state::drawpixel_generic(int x, int y, int patterndata, int offsetcn
 			case 0x0038: // invalid
 				// game tengoku uses this on hi score screen (tate mode)
 				// according to Charles, reads from VRAM address 0
-				raw = pix = m_vdp1.gfx_decode[1] | (m_vdp1.gfx_decode[0]<<8) ;
+				raw = pix = m_vdp1_legacy.gfx_decode[1] | (m_vdp1_legacy.gfx_decode[0]<<8) ;
 				// TODO: check transpen
 				transpen = 0;
 				endcode = -1;
@@ -1115,7 +1117,7 @@ void saturn_state::drawpixel_generic(int x, int y, int patterndata, int offsetcn
 	{
 		if ( (raw != transpen) || spd )
 		{
-			m_vdp1.framebuffer_draw_lines[y][x] = pix;
+			m_vdp1_legacy.framebuffer_draw_lines[y][x] = pix;
 		}
 	}
 	else
@@ -1129,39 +1131,39 @@ void saturn_state::drawpixel_generic(int x, int y, int patterndata, int offsetcn
 			switch( current_sprite.CMDPMOD & 0x3 )
 			{
 				case 0: /* replace */
-					m_vdp1.framebuffer_draw_lines[y][x] = pix;
+					m_vdp1_legacy.framebuffer_draw_lines[y][x] = pix;
 					break;
 				case 1: /* shadow */
-					if ( m_vdp1.framebuffer_draw_lines[y][x] & 0x8000 )
+					if ( m_vdp1_legacy.framebuffer_draw_lines[y][x] & 0x8000 )
 					{
-						m_vdp1.framebuffer_draw_lines[y][x] = ((m_vdp1.framebuffer_draw_lines[y][x] & ~0x8421) >> 1) | 0x8000;
+						m_vdp1_legacy.framebuffer_draw_lines[y][x] = ((m_vdp1_legacy.framebuffer_draw_lines[y][x] & ~0x8421) >> 1) | 0x8000;
 					}
 					break;
 				case 2: /* half luminance */
-					m_vdp1.framebuffer_draw_lines[y][x] = ((pix & ~0x8421) >> 1) | 0x8000;
+					m_vdp1_legacy.framebuffer_draw_lines[y][x] = ((pix & ~0x8421) >> 1) | 0x8000;
 					break;
 				case 3: /* half transparent */
-					if ( m_vdp1.framebuffer_draw_lines[y][x] & 0x8000 )
+					if ( m_vdp1_legacy.framebuffer_draw_lines[y][x] & 0x8000 )
 					{
-						m_vdp1.framebuffer_draw_lines[y][x] = alpha_blend_r16( m_vdp1.framebuffer_draw_lines[y][x], pix, 0x80 ) | 0x8000;
+						m_vdp1_legacy.framebuffer_draw_lines[y][x] = alpha_blend_r16( m_vdp1_legacy.framebuffer_draw_lines[y][x], pix, 0x80 ) | 0x8000;
 					}
 					else
 					{
-						m_vdp1.framebuffer_draw_lines[y][x] = pix;
+						m_vdp1_legacy.framebuffer_draw_lines[y][x] = pix;
 					}
 					break;
 				//case 4: /* Gouraud shading */
-				// TODO: Pro Yakyuu Team mo Tsukurou (during team creation, on PR girl select)
+				// TODO: proyakts (during team creation, on PR girl select)
 				//case 6:
 				//  break;
 				//case 7: /* Gouraud-shading + half-transparent */
-					// Lupin the 3rd Pyramid no Kenja enemy shadows
-					// Death Crimson lives indicators
+					// lupinpy enemy shadows
+					// deathcri lives indicators
 					// TODO: latter looks really bad.
 				default:
 					// TODO: mode 5: prohibited, mode 6: gouraud shading + half-luminance, mode 7: gouraud-shading + half-transparent
 					popmessage("VDP1 PMOD = %02x",current_sprite.CMDPMOD & 0x7);
-					m_vdp1.framebuffer_draw_lines[y][x] = pix;
+					m_vdp1_legacy.framebuffer_draw_lines[y][x] = pix;
 					break;
 			}
 		}
@@ -1505,12 +1507,12 @@ void saturn_state::vdp1_fill_quad(const rectangle &cliprect, int patterndata, in
 
 int saturn_state::x2s(int v)
 {
-	return (int32_t)(int16_t)v + m_vdp1.local_x;
+	return (int32_t)(int16_t)v + m_vdp1_legacy.local_x;
 }
 
 int saturn_state::y2s(int v)
 {
-	return (int32_t)(int16_t)v + m_vdp1.local_y;
+	return (int32_t)(int16_t)v + m_vdp1_legacy.local_y;
 }
 
 void saturn_state::vdp1_draw_line(const rectangle &cliprect)
@@ -1872,7 +1874,7 @@ void saturn_state::vdp1_draw_normal_sprite(const rectangle &cliprect, int sprite
 	maxdrawxpos = std::min(x+xsize-1,cliprect.max_x);
 	for (drawypos = y; drawypos <= maxdrawypos; drawypos++ )
 	{
-		//destline = m_vdp1.framebuffer_draw_lines[drawypos];
+		//destline = m_vdp1_legacy.framebuffer_draw_lines[drawypos];
 		su = u;
 		for (drawxpos = x; drawxpos <= maxdrawxpos; drawxpos++ )
 		{
@@ -1886,7 +1888,7 @@ void saturn_state::vdp1_draw_normal_sprite(const rectangle &cliprect, int sprite
 TIMER_CALLBACK_MEMBER(saturn_state::vdp1_draw_end )
 {
 	/* set CEF to 1*/
-	CEF_1;
+	CEF_1();
 
 	// TODO: temporary for Batman Forever, presumably anonymous timer not behaving well.
 	#if 0
@@ -1918,7 +1920,7 @@ void saturn_state::vdp1_process_list()
 	clear_gouraud_shading();
 
 	/*Set CEF bit to 0*/
-	CEF_0;
+	CEF_0();
 
 	// TODO: is there an actual limit for this?
 	while (spritecount < 16383) // max 16383 with texture or max 16384 without texture - virtually unlimited
@@ -2046,13 +2048,13 @@ void saturn_state::vdp1_process_list()
 			if ( current_sprite.CMDPMOD & 0x0400 )
 			{
 				//if(current_sprite.CMDPMOD & 0x0200) /* TODO: Bio Hazard inventory screen uses outside cliprect */
-				//  cliprect = &m_vdp1.system_cliprect;
+				//  cliprect = &m_vdp1_legacy.system_cliprect;
 				//else
-					cliprect = &m_vdp1.user_cliprect;
+					cliprect = &m_vdp1_legacy.user_cliprect;
 			}
 			else
 			{
-				cliprect = &m_vdp1.system_cliprect;
+				cliprect = &m_vdp1_legacy.system_cliprect;
 			}
 
 			vdp1_set_drawpixel();
@@ -2091,7 +2093,7 @@ void saturn_state::vdp1_process_list()
 					break;
 
 				case 0x0005:
-//              case 0x0007: // mirror? Baroque uses it, crashes for whatever reason
+				case 0x0007: // mirror? baroque/samsho4
 					if (VDP1_LOG) logerror ("Sprite List Polyline\n");
 					current_sprite.ispoly = 1;
 					vdp1_draw_poly_line(*cliprect);
@@ -2106,26 +2108,26 @@ void saturn_state::vdp1_process_list()
 				case 0x0008:
 //              case 0x000b: // mirror? Bug 2
 					if (VDP1_LOG) logerror ("Sprite List Set Command for User Clipping (%d,%d),(%d,%d)\n", current_sprite.CMDXA, current_sprite.CMDYA, current_sprite.CMDXC, current_sprite.CMDYC);
-					m_vdp1.user_cliprect.set(current_sprite.CMDXA, current_sprite.CMDXC, current_sprite.CMDYA, current_sprite.CMDYC);
+					m_vdp1_legacy.user_cliprect.set(current_sprite.CMDXA, current_sprite.CMDXC, current_sprite.CMDYA, current_sprite.CMDYC);
 					break;
 
 				case 0x0009:
 					if (VDP1_LOG) logerror ("Sprite List Set Command for System Clipping (0,0),(%d,%d)\n", current_sprite.CMDXC, current_sprite.CMDYC);
-					m_vdp1.system_cliprect.set(0, current_sprite.CMDXC, 0, current_sprite.CMDYC);
+					m_vdp1_legacy.system_cliprect.set(0, current_sprite.CMDXC, 0, current_sprite.CMDYC);
 					break;
 
 				case 0x000a:
 					if (VDP1_LOG) logerror ("Sprite List Local Co-Ordinate Set (%d %d)\n",(int16_t)current_sprite.CMDXA,(int16_t)current_sprite.CMDYA);
-					m_vdp1.local_x = (int16_t)current_sprite.CMDXA;
-					m_vdp1.local_y = (int16_t)current_sprite.CMDYA;
+					m_vdp1_legacy.local_x = (int16_t)current_sprite.CMDXA;
+					m_vdp1_legacy.local_y = (int16_t)current_sprite.CMDYA;
 					break;
 
 				default:
 					popmessage ("VDP1: Sprite List Illegal %02x (%d)",current_sprite.CMDCTRL & 0xf,spritecount);
-					m_vdp1.lopr = (position * 0x20) >> 3;
-					//m_vdp1.copr = (position * 0x20) >> 3;
+					m_vdp1_legacy.lopr = (position * 0x20) >> 3;
+					//m_vdp1_legacy.copr = (position * 0x20) >> 3;
 					// prematurely kill the VDP1 process if an illegal opcode is executed
-					// Sexy Parodius calls multiple illegals and expects VDP1 irq to be fired anyway!
+					// sexyparo calls multiple illegals and expects VDP1 irq to be fired anyway!
 					goto end;
 			}
 		}
@@ -2134,13 +2136,13 @@ void saturn_state::vdp1_process_list()
 
 
 	end:
-	m_vdp1.copr = (position * 0x20) >> 3;
+	m_vdp1_legacy.copr = (position * 0x20) >> 3;
 
 
 	/* TODO: what's the exact formula? Guess it should be a mix between number of pixels written and actual command data fetched. */
 	// if spritecount = 10000 don't send a vdp1 draw end
 //  if(spritecount < 10000)
-	m_vdp1.draw_end_timer->adjust(m_maincpu->cycles_to_attotime(spritecount*16));
+	m_vdp1_legacy.draw_end_timer->adjust(m_maincpu->cycles_to_attotime(spritecount*16));
 
 	if (VDP1_LOG) logerror ("End of list processing!\n");
 }
@@ -2165,20 +2167,20 @@ void saturn_state::vdp1_video_update()
 //      }
 //  }
 	if (VDP1_LOG) logerror("vdp1_video_update called\n");
-	if (VDP1_LOG) logerror( "FBCR = %0x, accessed = %d\n", VDP1_FBCR, m_vdp1.fbcr_accessed );
+	if (VDP1_LOG) logerror( "FBCR = %0x, accessed = %d\n", VDP1_FBCR, m_vdp1_legacy.fbcr_accessed );
 
 	if(VDP1_CEF)
-		BEF_1;
+		BEF_1();
 	else
-		BEF_0;
+		BEF_0();
 
-	if ( m_vdp1.framebuffer_clear_on_next_frame )
+	if ( m_vdp1_legacy.framebuffer_clear_on_next_frame )
 	{
 		if ( ((VDP1_FBCR & 0x3) == 3) &&
-			m_vdp1.fbcr_accessed )
+			m_vdp1_legacy.fbcr_accessed )
 		{
-			vdp1_clear_framebuffer(m_vdp1.framebuffer_current_display);
-			m_vdp1.framebuffer_clear_on_next_frame = 0;
+			vdp1_clear_framebuffer(m_vdp1_legacy.framebuffer_current_display);
+			m_vdp1_legacy.framebuffer_clear_on_next_frame = 0;
 		}
 	}
 
@@ -2186,24 +2188,24 @@ void saturn_state::vdp1_video_update()
 	{
 		case 0: /* Automatic mode */
 			vdp1_change_framebuffers();
-			vdp1_clear_framebuffer(m_vdp1.framebuffer_current_draw);
+			vdp1_clear_framebuffer(m_vdp1_legacy.framebuffer_current_draw);
 			framebuffer_changed = 1;
 			break;
 		case 1: /* Setting prohibited */
 			break;
 		case 2: /* Manual mode - erase */
-			if ( m_vdp1.fbcr_accessed )
+			if (m_vdp1_legacy.fbcr_accessed)
 			{
-				m_vdp1.framebuffer_clear_on_next_frame = 1;
+				m_vdp1_legacy.framebuffer_clear_on_next_frame = 1;
 			}
 			break;
 		case 3: /* Manual mode - change */
-			if ( m_vdp1.fbcr_accessed )
+			if (m_vdp1_legacy.fbcr_accessed)
 			{
 				vdp1_change_framebuffers();
-				if ( VDP1_VBE )
+				if (VDP1_VBE())
 				{
-					vdp1_clear_framebuffer(m_vdp1.framebuffer_current_draw);
+					vdp1_clear_framebuffer(m_vdp1_legacy.framebuffer_current_draw);
 				}
 				/* TODO: Slam n Jam 96 & Cross Romance doesn't like this, investigate. */
 				framebuffer_changed = 1;
@@ -2211,20 +2213,20 @@ void saturn_state::vdp1_video_update()
 	//      framebuffer_changed = 1;
 			break;
 	}
-	m_vdp1.fbcr_accessed = 0;
+	m_vdp1_legacy.fbcr_accessed = 0;
 
-	if (VDP1_LOG) logerror( "PTM = %0x, TVM = %x\n", VDP1_PTM, VDP1_TVM );
+	if (VDP1_LOG) logerror("PTM = %0x, TVM = %x\n", VDP1_PTM, VDP1_TVM());
 	/*Set CEF bit to 0*/
-	//CEF_0;
-	switch(VDP1_PTM & 3)
+	//CEF_0();
+	switch (VDP1_PTM & 3)
 	{
 		case 0:/*Idle Mode*/
 			/*Set CEF bit to 0*/
-			//CEF_0;
+			//CEF_0();
 			break;
 		case 1:/*Draw by request*/
 			/*Set CEF bit to 0*/
-			//CEF_0;
+			//CEF_0();
 			break;
 		case 2:/*Automatic Draw*/
 			if ( framebuffer_changed || VDP1_LOG )
@@ -2242,12 +2244,12 @@ void saturn_state::vdp1_video_update()
 
 void saturn_state::vdp1_state_save_postload()
 {
-	uint8_t *vdp1 = m_vdp1.gfx_decode.get();
+	uint8_t *vdp1 = m_vdp1_legacy.gfx_decode.get();
 	int offset;
 	uint32_t data;
 
-	m_vdp1.framebuffer_mode = -1;
-	m_vdp1.framebuffer_double_interlace = -1;
+	m_vdp1_legacy.framebuffer_mode = -1;
+	m_vdp1_legacy.framebuffer_double_interlace = -1;
 
 	vdp1_set_framebuffer_config();
 
@@ -2266,39 +2268,39 @@ int saturn_state::vdp1_start()
 {
 	m_vdp1_regs = make_unique_clear<uint16_t[]>(0x020/2 );
 	m_vdp1_vram = make_unique_clear<uint32_t[]>(0x100000/4 );
-	m_vdp1.gfx_decode = std::make_unique<uint8_t[]>(0x100000 );
+	m_vdp1_legacy.gfx_decode = std::make_unique<uint8_t[]>(0x100000 );
 
 	vdp1_shading_data = std::make_unique<struct vdp1_poly_scanline_data>();
 
-	m_vdp1.framebuffer[0] = std::make_unique<uint16_t[]>(1024 * 256 * 2 ); /* *2 is for double interlace */
-	m_vdp1.framebuffer[1] = std::make_unique<uint16_t[]>(1024 * 256 * 2 );
+	m_vdp1_legacy.framebuffer[0] = std::make_unique<uint16_t[]>(1024 * 256 * 2 ); /* *2 is for double interlace */
+	m_vdp1_legacy.framebuffer[1] = std::make_unique<uint16_t[]>(1024 * 256 * 2 );
 
-	m_vdp1.framebuffer_display_lines = std::make_unique<uint16_t * []>(512);
-	m_vdp1.framebuffer_draw_lines = std::make_unique<uint16_t * []>(512);
+	m_vdp1_legacy.framebuffer_display_lines = std::make_unique<uint16_t * []>(512);
+	m_vdp1_legacy.framebuffer_draw_lines = std::make_unique<uint16_t * []>(512);
 
-	m_vdp1.framebuffer_width = m_vdp1.framebuffer_height = 0;
-	m_vdp1.framebuffer_mode = -1;
-	m_vdp1.framebuffer_double_interlace = -1;
-	m_vdp1.fbcr_accessed = 0;
-	m_vdp1.framebuffer_current_display = 0;
-	m_vdp1.framebuffer_current_draw = 1;
-	vdp1_clear_framebuffer(m_vdp1.framebuffer_current_draw);
-	m_vdp1.framebuffer_clear_on_next_frame = 0;
+	m_vdp1_legacy.framebuffer_width = m_vdp1_legacy.framebuffer_height = 0;
+	m_vdp1_legacy.framebuffer_mode = -1;
+	m_vdp1_legacy.framebuffer_double_interlace = -1;
+	m_vdp1_legacy.fbcr_accessed = 0;
+	m_vdp1_legacy.framebuffer_current_display = 0;
+	m_vdp1_legacy.framebuffer_current_draw = 1;
+	vdp1_clear_framebuffer(m_vdp1_legacy.framebuffer_current_draw);
+	m_vdp1_legacy.framebuffer_clear_on_next_frame = 0;
 
-	m_vdp1.system_cliprect.set(0, 0, 0, 0);
+	m_vdp1_legacy.system_cliprect.set(0, 0, 0, 0);
 	/* Kidou Senshi Z Gundam - Zenpen Zeta no Kodou loves to use the user cliprect vars in an undefined state ... */
-	m_vdp1.user_cliprect.set(0, 512, 0, 256);
+	m_vdp1_legacy.user_cliprect.set(0, 512, 0, 256);
 
-	m_vdp1.draw_end_timer = timer_alloc(FUNC(saturn_state::vdp1_draw_end), this);
+	m_vdp1_legacy.draw_end_timer = timer_alloc(FUNC(saturn_state::vdp1_draw_end), this);
 	// save state
 	save_pointer(NAME(m_vdp1_regs), 0x020/2);
 	save_pointer(NAME(m_vdp1_vram), 0x100000/4);
-	save_item(NAME(m_vdp1.fbcr_accessed));
-	save_item(NAME(m_vdp1.framebuffer_current_display));
-	save_item(NAME(m_vdp1.framebuffer_current_draw));
-	save_item(NAME(m_vdp1.framebuffer_clear_on_next_frame));
-	save_item(NAME(m_vdp1.local_x));
-	save_item(NAME(m_vdp1.local_y));
+	save_item(NAME(m_vdp1_legacy.fbcr_accessed));
+	save_item(NAME(m_vdp1_legacy.framebuffer_current_display));
+	save_item(NAME(m_vdp1_legacy.framebuffer_current_draw));
+	save_item(NAME(m_vdp1_legacy.framebuffer_clear_on_next_frame));
+	save_item(NAME(m_vdp1_legacy.local_x));
+	save_item(NAME(m_vdp1_legacy.local_y));
 	machine().save().register_postload(save_prepost_delegate(FUNC(saturn_state::vdp1_state_save_postload), this));
 	return 0;
 }
@@ -2475,67 +2477,7 @@ enum
 
 */
 
-/* 180000 - r/w - TVMD - TV Screen Mode
- bit-> /----15----|----14----|----13----|----12----|----11----|----10----|----09----|----08----\
-       | DISP     |    --    |    --    |    --    |    --    |    --    |    --    | BDCLMD   |
-       |----07----|----06----|----05----|----04----|----03----|----02----|----01----|----00----|
-       | LSMD1    | LSMD0    | VRESO1   | VRESO0   |    --    | HRESO2   | HRESO1   | HRESO0   |
-       \----------|----------|----------|----------|----------|----------|----------|---------*/
 
-	#define VDP2_TVMD   (m_vdp2_regs[0x000/2])
-
-	#define VDP2_DISP   ((VDP2_TVMD & 0x8000) >> 15)
-	#define VDP2_BDCLMD ((VDP2_TVMD & 0x0100) >> 8)
-	#define VDP2_LSMD   ((VDP2_TVMD & 0x00c0) >> 6)
-	#define VDP2_VRES   ((VDP2_TVMD & 0x0030) >> 4)
-	#define VDP2_HRES   ((VDP2_TVMD & 0x0007) >> 0)
-
-/* 180002 - r/w - EXTEN - External Signal Enable Register
- bit-> /----15----|----14----|----13----|----12----|----11----|----10----|----09----|----08----\
-       |    --    |    --    |    --    |    --    |    --    |    --    | EXLTEN   | EXSYEN   |
-       |----07----|----06----|----05----|----04----|----03----|----02----|----01----|----00----|
-       |    --    |    --    |    --    |    --    |    --    |    --    | DASEL    | EXBGEN   |
-       \----------|----------|----------|----------|----------|----------|----------|---------*/
-
-	#define VDP2_EXTEN  (m_vdp2_regs[0x002/2])
-
-	#define VDP2_EXLTEN ((VDP2_EXTEN & 0x0200) >> 9)
-
-/* 180004 - r/o - TVSTAT - Screen Status
- bit-> /----15----|----14----|----13----|----12----|----11----|----10----|----09----|----08----\
-       |    --    |    --    |    --    |    --    |    --    |    --    | EXLTFG   | EXSYFG   |
-       |----07----|----06----|----05----|----04----|----03----|----02----|----01----|----00----|
-       |    --    |    --    |    --    |    --    | VBLANK   | HBLANK   | ODD      | PAL      |
-       \----------|----------|----------|----------|----------|----------|----------|---------*/
-
-/* 180006 - r/w - VRSIZE - VRAM Size
- bit-> /----15----|----14----|----13----|----12----|----11----|----10----|----09----|----08----\
-       | VRAMSZ   |    --    |    --    |    --    |    --    |    --    |    --    |    --    |
-       |----07----|----06----|----05----|----04----|----03----|----02----|----01----|----00----|
-       |    --    |    --    |    --    |    --    | VER3     | VER2     | VER1     | VER0     |
-       \----------|----------|----------|----------|----------|----------|----------|---------*/
-
-	#define VDP2_VRSIZE (m_vdp2_regs[0x006/2])
-
-	#define VDP2_VRAMSZ ((VDP2_VRSIZE & 0x8000) >> 15)
-
-/* 180008 - r/o - HCNT - H-Counter
- bit-> /----15----|----14----|----13----|----12----|----11----|----10----|----09----|----08----\
-       |    --    |    --    |    --    |    --    |    --    |    --    | HCT9     | HCT8     |
-       |----07----|----06----|----05----|----04----|----03----|----02----|----01----|----00----|
-       | HCT7     | HCT6     | HCT5     | HCT4     | HCT3     | HCT2     | HCT1     | HCT0     |
-       \----------|----------|----------|----------|----------|----------|----------|---------*/
-
-	#define VDP2_HCNT (m_vdp2_regs[0x008/2])
-
-/* 18000A - r/o - VCNT - V-Counter
- bit-> /----15----|----14----|----13----|----12----|----11----|----10----|----09----|----08----\
-       |    --    |    --    |    --    |    --    |    --    |    --    | VCT9     | VCT8     |
-       |----07----|----06----|----05----|----04----|----03----|----02----|----01----|----00----|
-       | VCT7     | VCT6     | VCT5     | VCT4     | VCT3     | VCT2     | VCT1     | VCT0     |
-       \----------|----------|----------|----------|----------|----------|----------|---------*/
-
-	#define VDP2_VCNT (m_vdp2_regs[0x00a/2])
 
 /* 18000C - RESERVED
  bit-> /----15----|----14----|----13----|----12----|----11----|----10----|----09----|----08----\
@@ -4729,11 +4671,15 @@ void saturn_state::vdp2_drawgfxzoom(
 		transmask = 1 << (0 & 0xff);
 
 		if ((gfx->pen_usage(code) & ~transmask) == 0)
-			/* character is totally transparent, no need to draw */
+		{
+			// character is totally transparent, no need to draw
 			return;
+		}
 		else if ((gfx->pen_usage(code) & transmask) == 0)
-			/* character is totally opaque, can disable transparency */
+		{
+			// character is totally opaque, can disable transparency
 			transparency |= STV_TRANSPARENCY_NONE;
+		}
 	}
 
 	/*
@@ -4743,12 +4689,11 @@ void saturn_state::vdp2_drawgfxzoom(
 	1<<17 : double to 200%
 	*/
 
-
-	/* KW 991012 -- Added code to force clip to bitmap boundary */
+	// force clip to bitmap boundary
 	myclip = clip;
 	myclip &= dest_bmp.cliprect();
 
-	if( gfx )
+	if (gfx)
 	{
 		const pen_t *pal = &m_palette->pen(gfx->colorbase() + gfx->granularity() * (color % gfx->colors()));
 		const uint8_t *source_base = gfx->get_data(code % gfx->elements());
@@ -4758,7 +4703,7 @@ void saturn_state::vdp2_drawgfxzoom(
 
 		if (sprite_screen_width && sprite_screen_height)
 		{
-			/* compute sprite increment per screen pixel */
+			// compute sprite increment per screen pixel
 			//int dx = (gfx->width()<<16)/sprite_screen_width;
 			//int dy = (gfx->height()<<16)/sprite_screen_height;
 			int dx = current_tilemap.incx;
@@ -4770,7 +4715,7 @@ void saturn_state::vdp2_drawgfxzoom(
 			int x_index_base;
 			int y_index;
 
-			if( flipx )
+			if (flipx)
 			{
 				x_index_base = (sprite_screen_width-1)*dx;
 				dx = -dx;
@@ -4780,7 +4725,7 @@ void saturn_state::vdp2_drawgfxzoom(
 				x_index_base = 0;
 			}
 
-			if( flipy )
+			if (flipy)
 			{
 				y_index = (sprite_screen_height-1)*dy;
 				dy = -dy;
@@ -4790,38 +4735,40 @@ void saturn_state::vdp2_drawgfxzoom(
 				y_index = 0;
 			}
 
-			if( sx < myclip.left())
-			{ /* clip left */
+			if (sx < myclip.left())
+			{
+				// clip left
 				int pixels = myclip.left()-sx;
 				sx += pixels;
 				x_index_base += pixels*dx;
 			}
-			if( sy < myclip.top() )
-			{ /* clip top */
+			if (sy < myclip.top() )
+			{
+				// clip top
 				int pixels = myclip.top()-sy;
 				sy += pixels;
 				y_index += pixels*dy;
 			}
-			/* NS 980211 - fixed incorrect clipping */
-			if( ex > myclip.right()+1 )
-			{ /* clip right */
+			if (ex > myclip.right()+1)
+			{
+				// clip right
 				int pixels = ex-myclip.right()-1;
 				ex -= pixels;
 			}
-			if( ey > myclip.bottom()+1 )
-			{ /* clip bottom */
+			if (ey > myclip.bottom()+1)
+			{
+				// clip bottom
 				int pixels = ey-myclip.bottom()-1;
 				ey -= pixels;
 			}
 
-			if( ex>sx )
-			{ /* skip if inner loop doesn't draw anything */
-				int y;
-
-				/* case : STV_TRANSPARENCY_ALPHA */
+			// skip if inner loop doesn't draw anything
+			if (ex > sx )
+			{
 				if (transparency & STV_TRANSPARENCY_ALPHA)
 				{
-					for( y=sy; y<ey; y++ )
+					// case : STV_TRANSPARENCY_ALPHA
+					for (int y = sy; y < ey; y++)
 					{
 						uint8_t const *const source = source_base + (y_index>>16) * gfx->rowbytes();
 						uint32_t *const dest = &dest_bmp.pix(y);
@@ -4829,7 +4776,7 @@ void saturn_state::vdp2_drawgfxzoom(
 						int x_index = x_index_base;
 						for( int x=sx; x<ex; x++ )
 						{
-							if(vdp2_window_process(x,y))
+							if(vdp2_window_process(x, y))
 							{
 								int c = source[x_index>>16];
 								if ((transparency & STV_TRANSPARENCY_NONE) || (c != 0))
@@ -4840,18 +4787,19 @@ void saturn_state::vdp2_drawgfxzoom(
 
 						y_index += dy;
 					}
-				} /* case : STV_TRANSPARENCY_ADD_BLEND */
+				}
 				else if (transparency & STV_TRANSPARENCY_ADD_BLEND)
 				{
-					for( y=sy; y<ey; y++ )
+					// case : STV_TRANSPARENCY_ADD_BLEND
+					for (int y = sy; y < ey; y++)
 					{
 						uint8_t const *const source = source_base + (y_index>>16) * gfx->rowbytes();
 						uint32_t *const dest = &dest_bmp.pix(y);
 
 						int x_index = x_index_base;
-						for( int x=sx; x<ex; x++ )
+						for (int x = sx; x < ex; x++)
 						{
-							if(vdp2_window_process(x,y))
+							if (vdp2_window_process(x, y))
 							{
 								int c = source[x_index>>16];
 								if ((transparency & STV_TRANSPARENCY_NONE) || (c != 0))
@@ -4862,18 +4810,19 @@ void saturn_state::vdp2_drawgfxzoom(
 
 						y_index += dy;
 					}
-				} /* case : STV_TRANSPARENCY_PEN */
+				}
 				else
 				{
-					for( y=sy; y<ey; y++ )
+					// case : STV_TRANSPARENCY_PEN
+					for (int y = sy; y < ey; y++)
 					{
 						uint8_t const *const source = source_base + (y_index>>16) * gfx->rowbytes();
 						uint32_t *const dest = &dest_bmp.pix(y);
 
 						int x_index = x_index_base;
-						for( int x=sx; x<ex; x++ )
+						for (int x = sx; x < ex; x++)
 						{
-							if(vdp2_window_process(x,y))
+							if (vdp2_window_process(x, y))
 							{
 								int c = source[x_index>>16];
 								if ((transparency & STV_TRANSPARENCY_NONE) || (c != 0))
@@ -4899,7 +4848,7 @@ void saturn_state::vdp2_drawgfxzoom_rgb555(
 	rectangle myclip;
 	uint8_t* gfxdata;
 
-	gfxdata = m_vdp2.gfx_decode.get() + code * 0x20;
+	gfxdata = m_vdp2_legacy.gfx_decode.get() + code * 0x20;
 
 	if(current_tilemap.window_control.enabled[0] ||
 		current_tilemap.window_control.enabled[1])
@@ -4930,8 +4879,7 @@ void saturn_state::vdp2_drawgfxzoom_rgb555(
 	1<<17 : double to 200%
 	*/
 
-
-	/* KW 991012 -- Added code to force clip to bitmap boundary */
+	// force clip to bitmap boundary
 	myclip = clip;
 	myclip &= dest_bmp.cliprect();
 
@@ -4956,7 +4904,7 @@ void saturn_state::vdp2_drawgfxzoom_rgb555(
 			int x_index_base;
 			int y_index;
 
-			if( flipx )
+			if (flipx)
 			{
 				x_index_base = (sprite_screen_width-1)*dx;
 				dx = -dx;
@@ -4966,7 +4914,7 @@ void saturn_state::vdp2_drawgfxzoom_rgb555(
 				x_index_base = 0;
 			}
 
-			if( flipy )
+			if (flipy)
 			{
 				y_index = (sprite_screen_height-1)*dy;
 				dy = -dy;
@@ -4976,44 +4924,46 @@ void saturn_state::vdp2_drawgfxzoom_rgb555(
 				y_index = 0;
 			}
 
-			if( sx < myclip.left())
-			{ /* clip left */
+			if (sx < myclip.left())
+			{
+				// clip left
 				int pixels = myclip.left()-sx;
 				sx += pixels;
 				x_index_base += pixels*dx;
 			}
-			if( sy < myclip.top() )
-			{ /* clip top */
+			if (sy < myclip.top())
+			{
+				// clip top
 				int pixels = myclip.top()-sy;
 				sy += pixels;
 				y_index += pixels*dy;
 			}
-			/* NS 980211 - fixed incorrect clipping */
-			if( ex > myclip.right()+1 )
-			{ /* clip right */
+			if (ex > myclip.right()+1)
+			{
+				// clip right
 				int pixels = ex-myclip.right()-1;
 				ex -= pixels;
 			}
-			if( ey > myclip.bottom()+1 )
-			{ /* clip bottom */
+			if (ey > myclip.bottom()+1)
+			{
+				// clip bottom
 				int pixels = ey-myclip.bottom()-1;
 				ey -= pixels;
 			}
 
-			if( ex>sx )
-			{ /* skip if inner loop doesn't draw anything */
-				int y;
-
-				/* case : STV_TRANSPARENCY_ALPHA */
+			// skip if inner loop doesn't draw anything
+			if (ex > sx)
+			{
 				if (transparency & STV_TRANSPARENCY_ALPHA)
 				{
-					for( y=sy; y<ey; y++ )
+					// case : STV_TRANSPARENCY_ALPHA
+					for(int y = sy; y < ey; y++)
 					{
 						uint8_t const *const source = gfxdata + (y_index>>16)*16;
 						uint32_t *const dest = &dest_bmp.pix(y);
 
 						int x_index = x_index_base;
-						for( int x=sx; x<ex; x++ )
+						for (int x = sx; x < ex; x++)
 						{
 							int data = (source[(x_index>>16)*2] << 8) | source[(x_index>>16)*2+1];
 							int b = pal5bit((data & 0x7c00) >> 10);
@@ -5030,16 +4980,17 @@ void saturn_state::vdp2_drawgfxzoom_rgb555(
 
 						y_index += dy;
 					}
-				} /* case : STV_TRANSPARENCY_ADD_BLEND */
+				}
 				else if (transparency & STV_TRANSPARENCY_ADD_BLEND)
 				{
-					for( y=sy; y<ey; y++ )
+					// case : STV_TRANSPARENCY_ADD_BLEND
+					for (int y = sy; y < ey; y++)
 					{
 						uint8_t const *const source = gfxdata + (y_index>>16)*16;
 						uint32_t *const dest = &dest_bmp.pix(y);
 
 						int x_index = x_index_base;
-						for( int x=sx; x<ex; x++ )
+						for (int x = sx; x < ex; x++)
 						{
 							int data = (source[(x_index*2+0)>>16]<<0)|(source[(x_index*2+1)>>16]<<8);
 							int b = pal5bit((data & 0x7c00) >> 10);
@@ -5056,22 +5007,23 @@ void saturn_state::vdp2_drawgfxzoom_rgb555(
 
 						y_index += dy;
 					}
-				} /* case : STV_TRANSPARENCY_PEN */
+				}
 				else
 				{
-					for( y=sy; y<ey; y++ )
+					// case : STV_TRANSPARENCY_PEN
+					for (int y = sy; y < ey; y++)
 					{
 						uint8_t const *const source = gfxdata + (y_index>>16)*16;
 						uint32_t *const dest = &dest_bmp.pix(y);
 
 						int x_index = x_index_base;
-						for( int x=sx; x<ex; x++ )
+						for (int x = sx; x < ex; x++)
 						{
 							int data = (source[(x_index>>16)*2] << 8) | source[(x_index>>16)*2+1];
 							int b = pal5bit((data & 0x7c00) >> 10);
 							int g = pal5bit((data & 0x03e0) >> 5);
 							int r = pal5bit( data & 0x001f);
-							if(current_tilemap.fade_control & 1)
+							if (current_tilemap.fade_control & 1)
 								vdp2_compute_color_offset(&r,&g,&b,current_tilemap.fade_control & 2);
 
 							if ((transparency & STV_TRANSPARENCY_NONE) || (data & 0x8000))
@@ -5090,20 +5042,20 @@ void saturn_state::vdp2_drawgfxzoom_rgb555(
 }
 
 
-void saturn_state::vdp2_drawgfx_rgb555( bitmap_rgb32 &dest_bmp, const rectangle &clip, uint32_t code, int flipx, int flipy, int sx, int sy, int transparency, int alpha)
+void saturn_state::vdp2_drawgfx_rgb555(bitmap_rgb32 &dest_bmp, const rectangle &clip, uint32_t code, int flipx, int flipy, int sx, int sy, int transparency, int alpha)
 {
 	rectangle myclip;
 	uint8_t* gfxdata;
 	int sprite_screen_width, sprite_screen_height;
 
-	gfxdata = m_vdp2.gfx_decode.get() + code * 0x20;
+	gfxdata = m_vdp2_legacy.gfx_decode.get() + code * 0x20;
 	sprite_screen_width = sprite_screen_height = 8;
 
 	if(current_tilemap.window_control.enabled[0] ||
 		current_tilemap.window_control.enabled[1])
 		popmessage("Window Enabled for RGB555 tiles");
 
-	/* KW 991012 -- Added code to force clip to bitmap boundary */
+	// force clip to bitmap boundary
 	myclip = clip;
 	myclip &= dest_bmp.cliprect();
 
@@ -5117,7 +5069,7 @@ void saturn_state::vdp2_drawgfx_rgb555( bitmap_rgb32 &dest_bmp, const rectangle 
 		int x_index_base;
 		int y_index;
 
-		if( flipx )
+		if (flipx)
 		{
 			x_index_base = (sprite_screen_width-1)*dx;
 			dx = -dx;
@@ -5127,7 +5079,7 @@ void saturn_state::vdp2_drawgfx_rgb555( bitmap_rgb32 &dest_bmp, const rectangle 
 			x_index_base = 0;
 		}
 
-		if( flipy )
+		if (flipy)
 		{
 			y_index = (sprite_screen_height-1)*dy;
 			dy = -dy;
@@ -5137,41 +5089,43 @@ void saturn_state::vdp2_drawgfx_rgb555( bitmap_rgb32 &dest_bmp, const rectangle 
 			y_index = 0;
 		}
 
-		if( sx < myclip.left())
-		{ /* clip left */
+		if (sx < myclip.left())
+		{
+			// clip left
 			int pixels = myclip.left()-sx;
 			sx += pixels;
 			x_index_base += pixels*dx;
 		}
-		if( sy < myclip.top() )
-		{ /* clip top */
+		if (sy < myclip.top())
+		{
+			// clip top
 			int pixels = myclip.top()-sy;
 			sy += pixels;
 			y_index += pixels*dy;
 		}
-		/* NS 980211 - fixed incorrect clipping */
-		if( ex > myclip.right()+1 )
-		{ /* clip right */
+		if (ex > myclip.right()+1)
+		{
+			// clip right
 			int pixels = ex-myclip.right()-1;
 			ex -= pixels;
 		}
-		if( ey > myclip.bottom()+1 )
-		{ /* clip bottom */
+		if (ey > myclip.bottom()+1)
+		{
+			// clip bottom
 			int pixels = ey-myclip.bottom()-1;
 			ey -= pixels;
 		}
 
-		if( ex>sx )
-		{ /* skip if inner loop doesn't draw anything */
-			int y;
-
-			for( y=sy; y<ey; y++ )
+		// skip if inner loop doesn't draw anything
+		if (ex > sx)
+		{
+			for (int y = sy; y < ey; y++)
 			{
 				uint8_t const *const source = gfxdata + (y_index>>16)*16;
 				uint32_t *const dest = &dest_bmp.pix(y);
 
 				int x_index = x_index_base;
-				for( int x=sx; x<ex; x++ )
+				for (int x = sx; x < ex; x++)
 				{
 					uint16_t data = (source[(x_index>>16)*2] << 8) | source[(x_index>>16)*2+1];
 					if ((data & 0x8000) || (transparency & STV_TRANSPARENCY_NONE))
@@ -5179,7 +5133,7 @@ void saturn_state::vdp2_drawgfx_rgb555( bitmap_rgb32 &dest_bmp, const rectangle 
 						int b = pal5bit((data & 0x7c00) >> 10);
 						int g = pal5bit((data & 0x03e0) >> 5);
 						int r = pal5bit( data & 0x001f);
-						if(current_tilemap.fade_control & 1)
+						if (current_tilemap.fade_control & 1)
 							vdp2_compute_color_offset(&r,&g,&b,current_tilemap.fade_control & 2);
 
 						if (transparency & STV_TRANSPARENCY_ALPHA)
@@ -5207,16 +5161,17 @@ void saturn_state::vdp2_drawgfx_rgb888( bitmap_rgb32 &dest_bmp, const rectangle 
 	uint8_t* gfxdata;
 	int sprite_screen_width, sprite_screen_height;
 
-	gfxdata = m_vdp2.gfx_decode.get() + code * 0x20;
+	gfxdata = m_vdp2_legacy.gfx_decode.get() + code * 0x20;
 	sprite_screen_width = sprite_screen_height = 8;
 
 	if(current_tilemap.window_control.enabled[0] ||
 		current_tilemap.window_control.enabled[1])
 		popmessage("Window Enabled for RGB888 tiles");
 
-	/* KW 991012 -- Added code to force clip to bitmap boundary */
+	// force clip to bitmap boundary
 	myclip = clip;
 	myclip &= dest_bmp.cliprect();
+
 	{
 		int dx = current_tilemap.incx;
 		int dy = current_tilemap.incy;
@@ -5248,31 +5203,35 @@ void saturn_state::vdp2_drawgfx_rgb888( bitmap_rgb32 &dest_bmp, const rectangle 
 		}
 
 		if( sx < myclip.left())
-		{ /* clip left */
+		{
+			// clip left
 			int pixels = myclip.left()-sx;
 			sx += pixels;
 			x_index_base += pixels*dx;
 		}
 		if( sy < myclip.top() )
-		{ /* clip top */
+		{
+			// clip top
 			int pixels = myclip.top()-sy;
 			sy += pixels;
 			y_index += pixels*dy;
 		}
-		/* NS 980211 - fixed incorrect clipping */
 		if( ex > myclip.right()+1 )
-		{ /* clip right */
+		{
+			// clip right
 			int pixels = ex-myclip.right()-1;
 			ex -= pixels;
 		}
 		if( ey > myclip.bottom()+1 )
-		{ /* clip bottom */
+		{
+			// clip bottom
 			int pixels = ey-myclip.bottom()-1;
 			ey -= pixels;
 		}
 
-		if( ex>sx )
-		{ /* skip if inner loop doesn't draw anything */
+		// skip if inner loop doesn't draw anything
+		if( ex > sx )
+		{
 			for( int y=sy; y<ey; y++ )
 			{
 				uint8_t const *const source = gfxdata + (y_index>>16)*32;
@@ -5323,41 +5282,40 @@ void saturn_state::vdp2_drawgfx_alpha(bitmap_rgb32 &dest_bmp,const rectangle &cl
 	x_index_base = flipx ? gfx->width()-1 : 0;
 	y_index = flipy ? gfx->height()-1 : 0;
 
-	/* start coordinates */
+	// start coordinates
 	sx = offsx;
 	sy = offsy;
 
-	/* end coordinates */
+	// end coordinates
 	ex = sx + gfx->width();
 	ey = sy + gfx->height();
 
-	/* clip left */
 	if (sx < clip.left())
 	{
+		// clip left
 		int pixels = clip.left()-sx;
 		sx += pixels;
 		x_index_base += xinc*pixels;
 	}
-
-	/* clip top */
 	if (sy < clip.top())
-	{   int pixels = clip.top()-sy;
+	{
+		// clip top
+		int pixels = clip.top()-sy;
 		sy += pixels;
 		y_index += yinc*pixels;
 	}
-
-	/* clip right */
 	if (ex > clip.right()+1)
 	{
+		// clip right
 		ex = clip.right()+1;
 	}
-	/* clip bottom */
 	if (ey > clip.bottom()+1)
 	{
+		// clip bottom
 		ey = clip.bottom()+1;
 	}
 
-	/* skip if inner loop doesn't draw anything */
+	// skip if inner loop doesn't draw anything
 	if (ex > sx)
 	{
 		for (int y = sy; y < ey; y++)
@@ -5396,41 +5354,40 @@ void saturn_state::vdp2_drawgfx_transpen(bitmap_rgb32 &dest_bmp,const rectangle 
 	x_index_base = flipx ? gfx->width()-1 : 0;
 	y_index = flipy ? gfx->height()-1 : 0;
 
-	/* start coordinates */
+	// start coordinates
 	sx = offsx;
 	sy = offsy;
 
-	/* end coordinates */
+	// end coordinates
 	ex = sx + gfx->width();
 	ey = sy + gfx->height();
 
-	/* clip left */
 	if (sx < clip.left())
 	{
+		// clip left
 		int pixels = clip.left()-sx;
 		sx += pixels;
 		x_index_base += xinc*pixels;
 	}
-
-	/* clip top */
 	if (sy < clip.top())
-	{   int pixels = clip.top()-sy;
+	{
+		// clip top
+		int pixels = clip.top()-sy;
 		sy += pixels;
 		y_index += yinc*pixels;
 	}
-
-	/* clip right */
 	if (ex > clip.right()+1)
 	{
+		// clip right
 		ex = clip.right()+1;
 	}
-	/* clip bottom */
 	if (ey > clip.bottom()+1)
 	{
+		// clip bottom
 		ey = clip.bottom()+1;
 	}
 
-	/* skip if inner loop doesn't draw anything */
+	// skip if inner loop doesn't draw anything
 	if (ex > sx)
 	{
 		for (int y = sy; y < ey; y++)
@@ -5459,7 +5416,7 @@ void saturn_state::draw_4bpp_bitmap(bitmap_rgb32 &bitmap, const rectangle &clipr
 	int xsize, ysize, xsize_mask, ysize_mask;
 	int xsrc,ysrc,xdst,ydst;
 	int src_offs;
-	uint8_t* vram = m_vdp2.gfx_decode.get();
+	uint8_t* vram = m_vdp2_legacy.gfx_decode.get();
 	uint32_t map_offset = current_tilemap.bitmap_map * 0x20000;
 	int scrollx = current_tilemap.scrollx;
 	int scrolly = current_tilemap.scrolly;
@@ -5515,7 +5472,7 @@ void saturn_state::draw_8bpp_bitmap(bitmap_rgb32 &bitmap, const rectangle &clipr
 	int xsize, ysize, xsize_mask, ysize_mask;
 	int xsrc,ysrc,xdst,ydst;
 	int src_offs;
-	uint8_t* vram = m_vdp2.gfx_decode.get();
+	uint8_t* vram = m_vdp2_legacy.gfx_decode.get();
 	uint32_t map_offset = current_tilemap.bitmap_map * 0x20000;
 	int scrollx = current_tilemap.scrollx;
 	int scrolly = current_tilemap.scrolly;
@@ -5574,7 +5531,7 @@ void saturn_state::draw_11bpp_bitmap(bitmap_rgb32 &bitmap, const rectangle &clip
 	int xsize, ysize, xsize_mask, ysize_mask;
 	int xsrc,ysrc,xdst,ydst;
 	int src_offs;
-	uint8_t* vram = m_vdp2.gfx_decode.get();
+	uint8_t* vram = m_vdp2_legacy.gfx_decode.get();
 	uint32_t map_offset = current_tilemap.bitmap_map * 0x20000;
 	int scrollx = current_tilemap.scrollx;
 	int scrolly = current_tilemap.scrolly;
@@ -5632,7 +5589,7 @@ void saturn_state::draw_rgb15_bitmap(bitmap_rgb32 &bitmap, const rectangle &clip
 	int xsize, ysize, xsize_mask, ysize_mask;
 	int xsrc,ysrc,xdst,ydst;
 	int src_offs;
-	uint8_t* vram = m_vdp2.gfx_decode.get();
+	uint8_t* vram = m_vdp2_legacy.gfx_decode.get();
 	uint32_t map_offset = current_tilemap.bitmap_map * 0x20000;
 	int scrollx = current_tilemap.scrollx;
 	int scrolly = current_tilemap.scrolly;
@@ -5690,7 +5647,7 @@ void saturn_state::draw_rgb32_bitmap(bitmap_rgb32 &bitmap, const rectangle &clip
 	int xsize, ysize, xsize_mask, ysize_mask;
 	int xsrc,ysrc,xdst,ydst;
 	int src_offs;
-	uint8_t* vram = m_vdp2.gfx_decode.get();
+	uint8_t* vram = m_vdp2_legacy.gfx_decode.get();
 	uint32_t map_offset = current_tilemap.bitmap_map * 0x20000;
 	int scrollx = current_tilemap.scrollx;
 	int scrolly = current_tilemap.scrolly;
@@ -6293,7 +6250,7 @@ void saturn_state::vdp2_draw_basic_tilemap(bitmap_rgb32 &bitmap, const rectangle
 			}
 /* TILES ARE NOW DECODED */
 
-			if(!VDP2_VRAMSZ)
+			if(!m_vdp2->get_vramsz())
 				tilecode &= 0x3fff;
 
 /* DRAW! */
@@ -6596,15 +6553,15 @@ void saturn_state::vdp2_check_tilemap_with_linescroll(bitmap_rgb32 &bitmap, cons
 void saturn_state::vdp2_draw_line(bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	int x,y;
-	uint8_t* gfxdata = m_vdp2.gfx_decode.get();
+	uint8_t* gfxdata = m_vdp2_legacy.gfx_decode.get();
 	uint32_t base_offs,base_mask;
 	uint32_t pix;
 	uint8_t interlace;
 
-	interlace = (VDP2_LSMD == 3)+1;
+	interlace = (m_vdp2->get_lsmd() == 3) + 1;
 
 	{
-		base_mask = VDP2_VRAMSZ ? 0x7ffff : 0x3ffff;
+		base_mask = m_vdp2->get_vramsz() ? 0x7ffff : 0x3ffff;
 
 		for(y=cliprect.top();y<=cliprect.bottom();y++)
 		{
@@ -6637,7 +6594,7 @@ void saturn_state::vdp2_draw_mosaic(bitmap_rgb32 &bitmap, const rectangle &clipr
 	if(h_size == 1 && v_size == 1)
 		return; // don't bother
 
-	if(VDP2_LSMD == 3)
+	if(m_vdp2->get_lsmd() == 3)
 		v_size <<= 1;
 
 	for(int y=cliprect.top();y<=cliprect.bottom();y+=v_size)
@@ -6660,70 +6617,76 @@ void saturn_state::vdp2_check_tilemap(bitmap_rgb32 &bitmap, const rectangle &cli
 //  int window_applied = 0;
 	rectangle mycliprect = cliprect;
 
-	if ( current_tilemap.linescroll_enable ||
-			current_tilemap.vertical_linescroll_enable ||
-			current_tilemap.linezoom_enable ||
-			current_tilemap.vertical_cell_scroll_enable)
+//	if (current_tilemap.vertical_cell_scroll_enable)
+//		popmessage("%d %d %d %d", current_tilemap.linescroll_enable, current_tilemap.vertical_linescroll_enable, current_tilemap.linezoom_enable, current_tilemap.vertical_cell_scroll_enable);
+
+	// check for vertical cell scroll enable (sonicjamj)
+	// TODO: it is unknown how this works with vertical linescroll enable too (it may not work?)
+	// TODO: support a subset only for now, given batmanfr The Riddler stage also sets linezoom_enable
+	// Would make the background rounded to the Dome, but o(n*m) nested loop causes a performance nosedive
+	// https://mametesters.org/view.php?id=7203
+	if (current_tilemap.linescroll_enable && current_tilemap.vertical_cell_scroll_enable && !current_tilemap.vertical_linescroll_enable && !current_tilemap.linezoom_enable)
 	{
-		// check for vertical cell scroll enable (Sonic Jam)
-		// TODO: it is unknown how this works with vertical linescroll enable too (probably it doesn't?)
-		if(current_tilemap.vertical_cell_scroll_enable)
+		uint32_t vcsc_address;
+		uint32_t base_mask;
+		int base_offset, base_multiplier;
+		int16_t base_scrollx, base_scrolly;
+		//uint32_t base_incx, base_incy;
+		int cur_char = 0;
+
+		base_mask = m_vdp2->get_vramsz() ? 0x7ffff : 0x3ffff;
+		vcsc_address = (((VDP2_VCSTAU << 16) | VDP2_VCSTAL) & base_mask) * 2;
+		vcsc_address >>= 2;
+
+		base_offset = 0;
+		base_multiplier = 1;
+		// offset for both enabled
+		if(VDP2_N0VCSC && VDP2_N1VCSC)
 		{
-			uint32_t vcsc_address;
-			uint32_t base_mask;
-			int base_offset, base_multiplier;
-			int16_t base_scrollx, base_scrolly;
-			//uint32_t base_incx, base_incy;
-			int cur_char = 0;
+			// NBG1
+			if(current_tilemap.layer_name & 1)
+				base_offset = 1;
 
-			base_mask = VDP2_VRAMSZ ? 0x7ffff : 0x3ffff;
-			vcsc_address = (((VDP2_VCSTAU << 16) | VDP2_VCSTAL) & base_mask) * 2;
-			vcsc_address >>= 2;
-
-			base_offset = 0;
-			base_multiplier = 1;
-			// offset for both enabled
-			if(VDP2_N0VCSC && VDP2_N1VCSC)
-			{
-				// NBG1
-				if(current_tilemap.layer_name & 1)
-					base_offset = 1;
-
-				base_multiplier = 2;
-			}
-
-			base_scrollx = current_tilemap.scrollx;
-			base_scrolly = current_tilemap.scrolly;
-			//base_incx = current_tilemap.incx;
-			//base_incy = current_tilemap.incy;
-
-			while(cur_char <= cliprect.right())
-			{
-				mycliprect.setx(cur_char, cur_char + 8 - 1);
-
-				uint32_t cur_address;
-				int16_t char_scroll;
-
-				cur_address = vcsc_address;
-				cur_address += ((cur_char >> 3) * base_multiplier) + base_offset;
-
-				char_scroll = m_vdp2_vram[ cur_address ] >> 16;
-				char_scroll &= 0x07ff;
-				if ( char_scroll & 0x0400 ) char_scroll |= 0xf800;
-				current_tilemap.scrollx = base_scrollx;
-				current_tilemap.scrolly = base_scrolly + (char_scroll);
-				//current_tilemap.incx = base_incx;
-				//current_tilemap.incy = base_incy;
-
-				vdp2_check_tilemap_with_linescroll(bitmap, mycliprect);
-
-				// TODO: + 16 for tilemap and char size = 16?
-				cur_char += 8;
-
-			}
+			base_multiplier = 2;
 		}
-		else
-			vdp2_check_tilemap_with_linescroll(bitmap, cliprect);
+
+		base_scrollx = current_tilemap.scrollx;
+		base_scrolly = current_tilemap.scrolly;
+		//base_incx = current_tilemap.incx;
+		//base_incy = current_tilemap.incy;
+
+		while(cur_char <= cliprect.right())
+		{
+			mycliprect.setx(cur_char, cur_char + 8 - 1);
+
+			uint32_t cur_address;
+			int16_t char_scroll;
+
+			cur_address = vcsc_address;
+			cur_address += ((cur_char >> 3) * base_multiplier) + base_offset;
+
+			char_scroll = m_vdp2_vram[ cur_address ] >> 16;
+			char_scroll &= 0x07ff;
+			if ( char_scroll & 0x0400 ) char_scroll |= 0xf800;
+			current_tilemap.scrollx = base_scrollx;
+			current_tilemap.scrolly = base_scrolly + (char_scroll);
+			//current_tilemap.incx = base_incx;
+			//current_tilemap.incy = base_incy;
+
+			vdp2_check_tilemap_with_linescroll(bitmap, mycliprect);
+
+			// TODO: + 16 for tilemap and char size = 16?
+			cur_char += 8;
+
+		}
+
+		return;
+	}
+	else if ( current_tilemap.linescroll_enable ||
+			current_tilemap.vertical_linescroll_enable ||
+			current_tilemap.linezoom_enable)
+	{
+		vdp2_check_tilemap_with_linescroll(bitmap, cliprect);
 
 		return;
 	}
@@ -6754,24 +6717,24 @@ void saturn_state::vdp2_check_tilemap(bitmap_rgb32 &bitmap, const rectangle &cli
 //      if(VDP2_SCXDN0 || VDP2_SCXDN1 || VDP2_SCYDN0 || VDP2_SCYDN1)
 //          popmessage("Fractional part scrolling write");
 
-		/* Pukunpa */
+		/* pukunpa */
 		//if(VDP2_SPWINEN)
 		//  popmessage("Sprite Window enabled");
 
-		/* Capcom Collection Dai 2 - Choh Makaimura (Duh!) */
+		/* capgen2 - Choh Makaimura (obviously) */
 		if(VDP2_MZCTL & 0x1f && POPMESSAGE_DEBUG)
 			popmessage("Mosaic control enabled = %04x\n",VDP2_MZCTL);
 
-		/* Bio Hazard bit 1 */
-		/* Airs Adventure 0x3e */
-		/* Bakuretsu Hunter */
+		/* revil/biohaz bit 1 */
+		/* airsadve 0x3e */
+		/* bakhunt */
 		if(VDP2_LNCLEN & ~2 && POPMESSAGE_DEBUG)
 			popmessage("Line Colour screen enabled %04x %08x",VDP2_LNCLEN,VDP2_LCTAU<<16|VDP2_LCTAL);
 
-		/* Bio Hazard 0x400 = extended color calculation enabled */
-		/* Advanced World War 0x200 = color calculation ratio mode */
-		/* Whizz = 0x8100 */
-		/* Dark Saviour = 0x9051 on save select screen (the one with a Saturn in the background) */
+		/* revil/biohaz 0x400 = extended color calculation enabled */
+		/* aww 0x200 = color calculation ratio mode */
+		/* whizz/whizzj = 0x8100 */
+		/* darksavu = 0x9051 on save select screen (the one with a Saturn in the background) */
 		if(VDP2_CCCR & 0x6000)
 			popmessage("Gradation enabled %04x",VDP2_CCCR);
 
@@ -6779,49 +6742,49 @@ void saturn_state::vdp2_check_tilemap(bitmap_rgb32 &bitmap, const rectangle &cli
 		if(VDP2_SFCCMD && POPMESSAGE_DEBUG)
 			popmessage("Special Color Calculation enable %04x",VDP2_SFCCMD);
 
-		/* Cleopatra Fortune Transparent Shadow */
-		/* Pretty Fighter X Back & Transparent Shadow*/
+		/* cleopatr Transparent Shadow */
+		/* prettyx Back & Transparent Shadow*/
 		//if(VDP2_SDCTL & 0x0120)
 		//  popmessage("%s shadow select bit enabled",VDP2_SDCTL & 0x100 ? "Transparent" : "Back");
 
-		/* Langrisser III bit 3 normal, bit 1 during battle field */
-		/* Metal Slug bit 0 during gameplay */
-		/* Bug! Sega Away Logo onward 0x470 */
-		/* Command & Conquer 0x0004 0xc000 */
+		/* lengris3 bit 3 normal, bit 1 during battle field */
+		/* mslug bit 0 during gameplay */
+		/* bugu Sega Away Logo onward 0x470 */
+		/* cncu 0x0004 0xc000 */
 		if(VDP2_SFSEL & ~0x47f)
 			popmessage("Special Function Code Select enable %04x %04x",VDP2_SFSEL,VDP2_SFCODE);
 
-		/* Albert Odyssey Gaiden 0x0001 */
-		/* Asuka 120% 0x0101 */
-		/* Slam n Jam 96 0x0003 */
+		/* albodys 0x0001 */
+		/* asuka120 0x0101 */
+		/* slamnjamu 0x0003 */
 		if(VDP2_ZMCTL & 0x0200)
 			popmessage("Reduction enable %04x",VDP2_ZMCTL);
 
-		/* Burning Rangers and friends FMV, J.League Pro Soccer Club Wo Tsukurou!! backgrounds */
+		/* burningru based FMVs, jltsuk backgrounds */
 		if(VDP2_SCRCTL & 0x0101 && POPMESSAGE_DEBUG)
 			popmessage("Vertical cell scroll enable %04x",VDP2_SCRCTL);
 
-		/* Magical Drop III 0x200 -> color calculation window */
-		/* Ide Yousuke Meijin No Shin Jissen Mahjong 0x0303 */
-		/* Decathlete 0x088 */
-		/* Sexy Parodius 0x2300 */
+		/* magdrop3 0x200 -> color calculation window */
+		/* ideyusmj 0x0303 */
+		/* decathlt 0x088 */
+		/* sexyparo 0x2300 */
 //      if(VDP2_WCTLD & 0x2000)
 //          popmessage("Special window enabled %04x",VDP2_WCTLD);
 
-		/* Shining Force III, After Burner 2 (doesn't make a proper use tho?) */
-		/* Layer Section */
+		/* shinfrc3u, aburner2 (doesn't make a proper use tho?) */
+		/* layersec */
 		//if(VDP2_W0LWE || VDP2_W1LWE)
 		//  popmessage("Line Window %s %08x enabled",VDP2_W0LWE ? "0" : "1",VDP2_W0LWTA);
 
-		/* Akumajou Dracula, bits 2-4 */
-		/* Arcana Strikes bit 5 */
-		/* Choh Makai Mura 0x0055 */
-		/* Sega Rally 0x0155 */
-		/* Find Love  0x4400 */
-		/* Dragon Ball Z 0x3800 - 0x2c00 */
-		/* Assault Suit Leynos 2 0x0200*/
-		/* Bug! 0x8800 */
-		/* Wonder 3 0x0018 */
+		/* draculax bits 2-4 */
+		/* acstrike bit 5 */
+		/* capgen2 - Choh Makaimura 0x0055 */
+		/* srallycu 0x0155 */
+		/* findlove 0x4400 */
+		/* dbzsbuto 0x3800 - 0x2c00 */
+		/* leynos2 0x0200*/
+		/* bugu 0x8800 */
+		/* wonder3 0x0018 */
 		if(VDP2_SFPRMD & ~0xff7f)
 			popmessage("Special Priority Mode enabled %04x",VDP2_SFPRMD);
 	}
@@ -6853,8 +6816,8 @@ void saturn_state::vdp2_copy_roz_bitmap(bitmap_rgb32 &bitmap,
 	int32_t clipxmask = 0, clipymask = 0;
 
 
-	vcnt_shift = ((VDP2_LSMD & 3) == 3);
-	hcnt_shift = ((VDP2_HRES & 2) == 2);
+	vcnt_shift = m_vdp2->get_lsmd() == 3;
+	hcnt_shift = BIT(m_vdp2->get_hreso(), 1);
 
 	planesizex--;
 	planesizey--;
@@ -7281,7 +7244,7 @@ void saturn_state::vdp2_draw_NBG0(bitmap_rgb32 &bitmap, const rectangle &cliprec
 {
 	uint32_t base_mask;
 
-	base_mask = VDP2_VRAMSZ ? 0x7ffff : 0x3ffff;
+	base_mask = m_vdp2->get_vramsz() ? 0x7ffff : 0x3ffff;
 
 	/*
 	   Colours           : 16, 256, 2048, 32768, 16770000
@@ -7345,7 +7308,7 @@ void saturn_state::vdp2_draw_NBG0(bitmap_rgb32 &bitmap, const rectangle &cliprec
 	current_tilemap.incy = VDP2_ZMYN0;
 
 	current_tilemap.linescroll_enable = VDP2_N0LSCX;
-	current_tilemap.linescroll_interval = (((VDP2_LSMD & 3) == 2) ? (2) : (1)) << (VDP2_N0LSS);
+	current_tilemap.linescroll_interval = ((m_vdp2->get_lsmd() == 2) ? (2) : (1)) << (VDP2_N0LSS);
 	current_tilemap.linescroll_table_address = (((VDP2_LSTA0U << 16) | VDP2_LSTA0L) & base_mask) * 2;
 	current_tilemap.vertical_linescroll_enable = VDP2_N0LSCY;
 	current_tilemap.linezoom_enable = VDP2_N0LZMX;
@@ -7383,7 +7346,7 @@ void saturn_state::vdp2_draw_NBG1(bitmap_rgb32 &bitmap, const rectangle &cliprec
 {
 	uint32_t base_mask;
 
-	base_mask = VDP2_VRAMSZ ? 0x7ffff : 0x3ffff;
+	base_mask = m_vdp2->get_vramsz() ? 0x7ffff : 0x3ffff;
 
 	/*
 	   Colours           : 16, 256, 2048, 32768
@@ -7446,7 +7409,7 @@ void saturn_state::vdp2_draw_NBG1(bitmap_rgb32 &bitmap, const rectangle &cliprec
 	current_tilemap.incy = VDP2_ZMYN1;
 
 	current_tilemap.linescroll_enable = VDP2_N1LSCX;
-	current_tilemap.linescroll_interval = (((VDP2_LSMD & 3) == 2) ? (2) : (1)) << (VDP2_N1LSS);
+	current_tilemap.linescroll_interval = ((m_vdp2->get_lsmd() == 2) ? (2) : (1)) << (VDP2_N1LSS);
 	current_tilemap.linescroll_table_address = (((VDP2_LSTA1U << 16) | VDP2_LSTA1L) & base_mask) * 2;
 	current_tilemap.vertical_linescroll_enable = VDP2_N1LSCY;
 	current_tilemap.linezoom_enable = VDP2_N1LZMX;
@@ -7815,8 +7778,8 @@ void saturn_state::vdp2_draw_rotation_screen(bitmap_rgb32 &bitmap, const rectang
 	}
 	else
 	{
-		if ( !m_vdp2.roz_bitmap[iRP-1].valid() )
-			m_vdp2.roz_bitmap[iRP-1].allocate(4096, 4096);
+		if ( !m_vdp2_legacy.roz_bitmap[iRP-1].valid() )
+			m_vdp2_legacy.roz_bitmap[iRP-1].allocate(4096, 4096);
 
 		rectangle roz_clip_rect;
 		roz_clip_rect.min_x = roz_clip_rect.min_y = 0;
@@ -7856,8 +7819,8 @@ void saturn_state::vdp2_draw_rotation_screen(bitmap_rgb32 &bitmap, const rectang
 			if ( (RBG0_cache_data.is_cache_dirty & iRP) ||
 				memcmp(&RBG0_cache_data.layer_data[iRP-1],&current_tilemap,sizeof(current_tilemap)) != 0 )
 			{
-				m_vdp2.roz_bitmap[iRP-1].fill(m_palette->black_pen(), roz_clip_rect );
-				vdp2_check_tilemap(m_vdp2.roz_bitmap[iRP-1], roz_clip_rect);
+				m_vdp2_legacy.roz_bitmap[iRP-1].fill(m_palette->black_pen(), roz_clip_rect );
+				vdp2_check_tilemap(m_vdp2_legacy.roz_bitmap[iRP-1], roz_clip_rect);
 				// prepare cache data
 				RBG0_cache_data.watch_vdp2_vram_writes |= iRP;
 				RBG0_cache_data.is_cache_dirty &= ~iRP;
@@ -7894,7 +7857,7 @@ void saturn_state::vdp2_draw_rotation_screen(bitmap_rgb32 &bitmap, const rectang
 		current_tilemap.fade_control = fade_control;
 
 		auto profile2 = g_profiler.start(PROFILER_USER2);
-		vdp2_copy_roz_bitmap(bitmap, m_vdp2.roz_bitmap[iRP-1], cliprect, iRP, planesizex, planesizey, planerenderedsizex, planerenderedsizey );
+		vdp2_copy_roz_bitmap(bitmap, m_vdp2_legacy.roz_bitmap[iRP-1], cliprect, iRP, planesizex, planesizey, planerenderedsizex, planerenderedsizey );
 	}
 
 }
@@ -8010,18 +7973,18 @@ void saturn_state::vdp2_draw_RBG0(bitmap_rgb32 &bitmap, const rectangle &cliprec
 
 void saturn_state::vdp2_draw_back(bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	uint8_t const *const gfxdata = m_vdp2.gfx_decode.get();
+	uint8_t const *const gfxdata = m_vdp2_legacy.gfx_decode.get();
 
-	uint8_t interlace = (VDP2_LSMD == 3)+1;
+	uint8_t interlace = (m_vdp2->get_lsmd() == 3)+1;
 
-//  popmessage("Back screen %08x %08x %08x",VDP2_BDCLMD,VDP2_BKCLMD,VDP2_BKTA);
+//  popmessage("Back screen %08x %08x %08x",m_vdp2->get_bdclmd(),VDP2_BKCLMD,VDP2_BKTA);
 
 	/* draw black if BDCLMD and DISP are cleared */
-	if(!(VDP2_BDCLMD) && !(VDP2_DISP))
+	if(!(m_vdp2->get_bdclmd()) && !(m_vdp2->get_disp()))
 		bitmap.fill(m_palette->black_pen(), cliprect);
 	else
 	{
-		uint32_t base_mask = VDP2_VRAMSZ ? 0x7ffff : 0x3ffff;
+		uint32_t base_mask = m_vdp2->get_vramsz() ? 0x7ffff : 0x3ffff;
 
 		for(int y=cliprect.top();y<=cliprect.bottom();y++)
 		{
@@ -8051,7 +8014,7 @@ uint32_t saturn_state::vdp2_vram_r(offs_t offset)
 
 void saturn_state::vdp2_vram_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
-	uint8_t* gfxdata = m_vdp2.gfx_decode.get();
+	uint8_t* gfxdata = m_vdp2_legacy.gfx_decode.get();
 
 	COMBINE_DATA(&m_vdp2_vram[offset]);
 
@@ -8105,91 +8068,17 @@ void saturn_state::vdp2_vram_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 uint16_t saturn_state::vdp2_regs_r(offs_t offset)
 {
-	switch(offset)
-	{
-		case 0x002/2:
-		{
-			/* latch h/v signals through HV latch*/
-			if(!VDP2_EXLTEN)
-			{
-				if(!machine().side_effects_disabled())
-				{
-					m_vdp2.h_count = get_hcounter();
-					m_vdp2.v_count = get_vcounter();
-					/* latch flag */
-					m_vdp2.exltfg |= 1;
-				}
-			}
-
-			break;
-		}
-		case 0x004/2:
-		{
-			/*Screen Status Register*/
-										/*VBLANK              HBLANK            ODD               PAL    */
-			m_vdp2_regs[offset] = (m_vdp2.exltfg<<9) |
-											(m_vdp2.exsyfg<<8) |
-											(get_vblank() << 3) |
-											(get_hblank() << 2) |
-											(get_odd_bit() << 1) |
-											(m_vdp2.pal << 0);
-
-			/* vblank bit is always 1 if DISP bit is disabled */
-			if(!VDP2_DISP)
-				m_vdp2_regs[offset] |= 1 << 3;
-
-			/* HV latches clears if this register is read */
-			if(!machine().side_effects_disabled())
-			{
-				m_vdp2.exltfg &= ~1;
-				m_vdp2.exsyfg &= ~1;
-			}
-			break;
-		}
-		case 0x006/2:
-		{
-			m_vdp2_regs[offset] = (VDP2_VRAMSZ << 15) |
-											((0 << 0) & 0xf); // VDP2 version
-
-			/* Games basically r/w the entire VDP2 register area when this is tripped. (example: Silhouette Mirage)
-			   Disable log for the time being. */
-			//if(!machine().side_effects_disabled())
-			//  printf("Warning: VDP2 version read\n");
-			break;
-		}
-
-		/* HCNT */
-		case 0x008/2:
-		{
-			m_vdp2_regs[offset] = (m_vdp2.h_count);
-			break;
-		}
-
-		/* VCNT */
-		case 0x00a/2:
-		{
-			m_vdp2_regs[offset] = (m_vdp2.v_count);
-			break;
-		}
-
-		default:
-			//if(!machine().side_effects_disabled())
-			//  printf("VDP2: read from register %08x %08x\n",offset*4,mem_mask);
-			break;
-	}
-
 	return m_vdp2_regs[offset];
 }
 
+// TODO: mode 0 handling
 uint32_t saturn_state::vdp2_cram_r(offs_t offset)
 {
 	offset &= (0xfff) >> (2);
 	return m_vdp2_cram[offset];
 }
 
-
-
-
+// TODO: byte writes are goofy
 void saturn_state::vdp2_cram_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	int r,g,b;
@@ -8300,191 +8189,17 @@ void saturn_state::vdp2_regs_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	COMBINE_DATA(&m_vdp2_regs[offset]);
 
-	if(m_vdp2.old_crmd != VDP2_CRMD)
+	if(m_vdp2_legacy.old_crmd != VDP2_CRMD)
 	{
-		m_vdp2.old_crmd = VDP2_CRMD;
+		m_vdp2_legacy.old_crmd = VDP2_CRMD;
 		refresh_palette_data();
 	}
-	if(m_vdp2.old_tvmd != VDP2_TVMD)
-	{
-		m_vdp2.old_tvmd = VDP2_TVMD;
-		vdp2_dynamic_res_change();
-	}
-
-	if(VDP2_VRAMSZ)
-		printf("VDP2 sets up 8 Mbit VRAM!\n");
 }
 
-int saturn_state::get_hblank_duration()
-{
-	int res;
-
-	res = (VDP2_HRES & 1) ? 455 : 427;
-
-	/* double pump horizontal max res */
-	if(VDP2_HRES & 2)
-		res <<= 1;
-
-	return res;
-}
-
-/*some vblank lines measurements (according to Charles MacDonald)*/
-/* TODO: interlace mode "eats" one line, should be 262.5 */
-int saturn_state::get_vblank_duration()
-{
-	int res;
-
-	res = (m_vdp2.pal) ? 313 : 263;
-
-	/* compensate for interlacing */
-	if((VDP2_LSMD & 3) == 3)
-		res <<= 1;
-
-	if(VDP2_HRES & 4)
-		res = (VDP2_HRES & 1) ? 561 : 525;  //Hi-Vision / 31kHz Monitor
-
-	return res;
-}
-
-int saturn_state::get_pixel_clock()
-{
-	int res,divider;
-
-	res = (m_vdp2.dotsel ? MASTER_CLOCK_352 : MASTER_CLOCK_320).value();
-	// TODO: divider is ALWAYS 8, this thing is just to over-compensate for MAME framework faults ...
-	divider = 8;
-
-	if(VDP2_HRES & 2)
-		divider >>= 1;
-
-	if((VDP2_LSMD & 3) == 3)
-		divider >>= 1;
-
-	if(VDP2_HRES & 4) //TODO
-		divider >>= 1;
-
-	return res / divider;
-}
-
-/* TODO: hblank position and hblank firing doesn't really match HW behaviour. */
-uint8_t saturn_state::get_hblank()
-{
-	const rectangle &visarea = m_screen->visible_area();
-	int cur_h = m_screen->hpos();
-
-	if (cur_h > visarea.right()) //TODO
-		return 1;
-
-	return 0;
-}
-
-uint8_t saturn_state::get_vblank()
-{
-	int cur_v,vblank;
-	cur_v = m_screen->vpos();
-
-	vblank = get_vblank_start_position() * get_ystep_count();
-
-	if (cur_v >= vblank)
-		return 1;
-
-	return 0;
-}
-
-uint8_t saturn_state::get_odd_bit()
-{
-	if(VDP2_HRES & 4) //exclusive monitor mode makes this bit to be always 1
-		return 1;
-
-// TODO: seabass explicitly wants this bit to be 0 when screen is disabled from bios to game transition.
-//       But the documentation claims that "non-interlaced" mode is always 1.
-//       grdforce tests this bit to be 1 from title screen to gameplay, ditto for finlarch/sasissu/magzun.
-//       Assume documentation is wrong and actually always flip this bit.
-	return m_vdp2.odd; // m_screen->frame_number() & 1;
-}
-
-int saturn_state::get_vblank_start_position()
-{
-	// TODO: test says that second setting happens at 241, might need further investigation ...
-	//       also first one happens at 240, but needs mods in SMPC otherwise we get 2 credits at startup in shanhigw and sokyugrt
-	//       (i.e. make a special screen device that handles this for us)
-	const int d_vres[4] = { 224, 240, 256, 256 };
-	int vres_mask;
-	int vblank_line;
-
-	vres_mask = (m_vdp2.pal << 1)|1; //PAL uses mask 3, NTSC uses mask 1
-	vblank_line = d_vres[VDP2_VRES & vres_mask];
-
-	return vblank_line;
-}
-
-int saturn_state::get_ystep_count()
-{
-	int max_y = m_screen->height();
-	int y_step;
-
-	y_step = 2;
-
-	if((max_y == 263 && m_vdp2.pal == 0) || (max_y == 313 && m_vdp2.pal == 1))
-		y_step = 1;
-
-	return y_step;
-}
-
-/* TODO: these needs to be checked via HW tests! */
-int saturn_state::get_hcounter()
-{
-	int hcount;
-
-	hcount = m_screen->hpos();
-
-	switch(VDP2_HRES & 6)
-	{
-		/* Normal */
-		case 0:
-			hcount &= 0x1ff;
-			hcount <<= 1;
-			break;
-		/* Hi-Res */
-		case 2:
-			hcount &= 0x3ff;
-			break;
-		/* Exclusive Normal*/
-		case 4:
-			hcount &= 0x1ff;
-			break;
-		/* Exclusive Hi-Res */
-		case 6:
-			hcount >>= 1;
-			hcount &= 0x1ff;
-			break;
-	}
-
-	return hcount;
-}
-
-int saturn_state::get_vcounter()
-{
-	int vcount;
-
-	vcount = m_screen->vpos();
-
-	/* Exclusive Monitor */
-	if(VDP2_HRES & 4)
-		return vcount & 0x3ff;
-
-	/* Double Density Interlace */
-	if((VDP2_LSMD & 3) == 3)
-		return (vcount & ~1) | (m_screen->frame_number() & 1);
-
-	/* docs says << 1, but according to HW tests it's a typo. */
-	assert((vcount & 0x1ff) < std::size(true_vcount));
-	return (true_vcount[vcount & 0x1ff][VDP2_VRES]); // Non-interlace
-}
 
 void saturn_state::vdp2_state_save_postload()
 {
-	uint8_t *gfxdata = m_vdp2.gfx_decode.get();
+	uint8_t *gfxdata = m_vdp2_legacy.gfx_decode.get();
 	int offset;
 	uint32_t data;
 
@@ -8520,8 +8235,8 @@ void saturn_state::vdp2_state_save_postload()
 
 void saturn_state::vdp2_exit()
 {
-	m_vdp2.roz_bitmap[0].reset();
-	m_vdp2.roz_bitmap[1].reset();
+	m_vdp2_legacy.roz_bitmap[0].reset();
+	m_vdp2_legacy.roz_bitmap[1].reset();
 }
 
 int saturn_state::vdp2_start()
@@ -8531,7 +8246,7 @@ int saturn_state::vdp2_start()
 	m_vdp2_regs = make_unique_clear<uint16_t[]>(0x040000/2 );
 	m_vdp2_vram = make_unique_clear<uint32_t[]>(0x100000/4 );
 	m_vdp2_cram = make_unique_clear<uint32_t[]>(0x080000/4 );
-	m_vdp2.gfx_decode = std::make_unique<uint8_t[]>(0x100000 );
+	m_vdp2_legacy.gfx_decode = std::make_unique<uint8_t[]>(0x100000 );
 
 //  m_gfxdecode->gfx(0)->granularity()=4;
 //  m_gfxdecode->gfx(1)->granularity()=4;
@@ -8551,77 +8266,14 @@ int saturn_state::vdp2_start()
 /* maybe we should move this to video/stv.c */
 VIDEO_START_MEMBER(saturn_state,vdp2_video_start)
 {
-	int i;
 	m_screen->register_screen_bitmap(m_tmpbitmap);
 	vdp2_start();
 	vdp1_start();
 	m_vdpdebug_roz = 0;
-	m_gfxdecode->gfx(0)->set_source(m_vdp2.gfx_decode.get());
-	m_gfxdecode->gfx(1)->set_source(m_vdp2.gfx_decode.get());
-	m_gfxdecode->gfx(2)->set_source(m_vdp2.gfx_decode.get());
-	m_gfxdecode->gfx(3)->set_source(m_vdp2.gfx_decode.get());
-
-	/* calc V counter offsets */
-	/* 224 mode */
-	for(i = 0; i < 263; i++)
-	{
-		true_vcount[i][0] = i;
-		if(i > 0xec)
-			true_vcount[i][0]+=0xf9;
-	}
-
-	for(i = 0; i < 263; i++)
-	{
-		true_vcount[i][1] = i;
-		if(i > 0xf5)
-			true_vcount[i][1]+=0xf9;
-	}
-
-	/* 256 mode, todo */
-	for(i = 0; i < 263; i++)
-	{
-		true_vcount[i][2] = i;
-		true_vcount[i][3] = i;
-	}
-}
-
-void saturn_state::vdp2_dynamic_res_change()
-{
-	const int d_vres[4] = { 224, 240, 256, 256 };
-	const int d_hres[4] = { 320, 352, 640, 704 };
-	int horz_res,vert_res;
-	int vres_mask;
-
-	// reset odd bit if a dynamic resolution change occurs, seabass ST-V cares!
-	m_vdp2.odd = 1;
-	vres_mask = (m_vdp2.pal << 1)|1; //PAL uses mask 3, NTSC uses mask 1
-	vert_res = d_vres[VDP2_VRES & vres_mask];
-
-	if((VDP2_VRES & 3) == 3)
-		popmessage("Illegal VRES MODE");
-
-	/*Double-density interlace mode,doubles the vertical res*/
-	if((VDP2_LSMD & 3) == 3) { vert_res *= 2;  }
-
-	horz_res = d_hres[VDP2_HRES & 3];
-	/*Exclusive modes,they sets the Vertical Resolution without considering the
-	  VRES register.*/
-	if(VDP2_HRES & 4)
-		vert_res = 480;
-
-	{
-		int vblank_period,hblank_period;
-		attoseconds_t refresh;
-		rectangle visarea(0, horz_res-1, 0, vert_res-1);
-
-		vblank_period = get_vblank_duration();
-		hblank_period = get_hblank_duration();
-		refresh  = HZ_TO_ATTOSECONDS(get_pixel_clock()) * (hblank_period) * vblank_period;
-		//printf("%d %d %d %d\n",horz_res,vert_res,horz_res+hblank_period,vblank_period);
-
-		m_screen->configure(hblank_period, vblank_period, visarea, refresh );
-	}
-//  m_screen->set_visible_area(0*8, horz_res-1,0*8, vert_res-1);
+	m_gfxdecode->gfx(0)->set_source(m_vdp2_legacy.gfx_decode.get());
+	m_gfxdecode->gfx(1)->set_source(m_vdp2_legacy.gfx_decode.get());
+	m_gfxdecode->gfx(2)->set_source(m_vdp2_legacy.gfx_decode.get());
+	m_gfxdecode->gfx(3)->set_source(m_vdp2_legacy.gfx_decode.get());
 }
 
 /*This is for calculating the rgb brightness*/
@@ -8677,7 +8329,7 @@ void saturn_state::vdp2_fade_effects()
 void saturn_state::vdp2_get_window0_coordinates(int *s_x, int *e_x, int *s_y, int *e_y, int y)
 {
 	/*W0*/
-	switch(VDP2_LSMD & 3)
+	switch(m_vdp2->get_lsmd())
 	{
 		case 0:
 		case 1:
@@ -8693,10 +8345,10 @@ void saturn_state::vdp2_get_window0_coordinates(int *s_x, int *e_x, int *s_y, in
 	// check if line window is enabled
 	if(VDP2_W0LWE)
 	{
-		uint32_t base_mask = VDP2_VRAMSZ ? 0x7ffff : 0x3ffff;
+		uint32_t base_mask = m_vdp2->get_vramsz() ? 0x7ffff : 0x3ffff;
 		uint32_t address = (VDP2_W0LWTA & base_mask) * 2;
 		// double density makes the line window to fetch data every two lines
-		uint8_t interlace = (VDP2_LSMD == 3);
+		uint8_t interlace = (m_vdp2->get_lsmd() == 3);
 		uint32_t vram_data = m_vdp2_vram[(address >> 2)+(y >> interlace)];
 
 		*s_x = (vram_data >> 16) & 0x3ff;
@@ -8704,7 +8356,7 @@ void saturn_state::vdp2_get_window0_coordinates(int *s_x, int *e_x, int *s_y, in
 	}
 	else
 	{
-		switch(VDP2_HRES & 6)
+		switch(m_vdp2->get_hreso() & 6)
 		{
 			/*Normal*/
 			case 0:
@@ -8737,7 +8389,7 @@ void saturn_state::vdp2_get_window0_coordinates(int *s_x, int *e_x, int *s_y, in
 void saturn_state::vdp2_get_window1_coordinates(int *s_x, int *e_x, int *s_y, int *e_y, int y)
 {
 	/*W1*/
-	switch(VDP2_LSMD & 3)
+	switch(m_vdp2->get_lsmd())
 	{
 		case 0:
 		case 1:
@@ -8753,10 +8405,10 @@ void saturn_state::vdp2_get_window1_coordinates(int *s_x, int *e_x, int *s_y, in
 	// check if line window is enabled
 	if(VDP2_W1LWE)
 	{
-		uint32_t base_mask = VDP2_VRAMSZ ? 0x7ffff : 0x3ffff;
+		uint32_t base_mask = m_vdp2->get_vramsz() ? 0x7ffff : 0x3ffff;
 		uint32_t address = (VDP2_W1LWTA & base_mask) * 2;
 		// double density makes the line window to fetch data every two lines
-		uint8_t interlace = (VDP2_LSMD == 3);
+		uint8_t interlace = (m_vdp2->get_lsmd() == 3);
 		uint32_t vram_data = m_vdp2_vram[(address >> 2)+(y >> interlace)];
 
 		*s_x = (vram_data >> 16) & 0x3ff;
@@ -8764,7 +8416,7 @@ void saturn_state::vdp2_get_window1_coordinates(int *s_x, int *e_x, int *s_y, in
 	}
 	else
 	{
-		switch(VDP2_HRES & 6)
+		switch(m_vdp2->get_hreso() & 6)
 		{
 			/*Normal*/
 			case 0:
@@ -8954,14 +8606,14 @@ void saturn_state::draw_sprites(bitmap_rgb32 &bitmap, const rectangle &cliprect,
 	}
 
 	/* framebuffer interlace */
-	if ( (VDP2_LSMD == 3) && m_vdp1.framebuffer_double_interlace == 0 )
+	if ( (m_vdp2->get_lsmd() == 3) && m_vdp1_legacy.framebuffer_double_interlace == 0 )
 		interlace_framebuffer = 1;
 	else
 		interlace_framebuffer = 0;
 
 	/*Guess:Some games needs that the horizontal sprite size to be doubled
 	  (TODO: understand the proper settings,it might not work like this)*/
-	if(VDP1_TVM == 0 && VDP2_HRES & 2) // astrass & findlove
+	if(VDP1_TVM() == 0 && BIT(m_vdp2->get_hreso(), 1)) // astrass & findlove
 		double_x = 1;
 	else
 		double_x = 0;
@@ -8987,7 +8639,7 @@ void saturn_state::draw_sprites(bitmap_rgb32 &bitmap, const rectangle &cliprect,
 					if (vdp1_sprite_priorities_in_fb_line[y][pri] == 0)
 						continue;
 
-				framebuffer_line = m_vdp1.framebuffer_display_lines[y];
+				framebuffer_line = m_vdp1_legacy.framebuffer_display_lines[y];
 				bitmap_line = &bitmap.pix(y);
 
 				for ( x = cliprect.left(); x <= cliprect.right(); x++ )
@@ -9080,7 +8732,7 @@ void saturn_state::draw_sprites(bitmap_rgb32 &bitmap, const rectangle &cliprect,
 					if (vdp1_sprite_priorities_in_fb_line[y][pri] == 0)
 						continue;
 
-				framebuffer_line = m_vdp1.framebuffer_display_lines[y];
+				framebuffer_line = m_vdp1_legacy.framebuffer_display_lines[y];
 				bitmap_line = &bitmap.pix(y);
 
 				for ( x = cliprect.left(); x <= cliprect.right(); x++ )
@@ -9189,7 +8841,7 @@ void saturn_state::draw_sprites(bitmap_rgb32 &bitmap, const rectangle &cliprect,
 				if (vdp1_sprite_priorities_in_fb_line[y][pri] == 0)
 					continue;
 
-			framebuffer_line = m_vdp1.framebuffer_display_lines[y];
+			framebuffer_line = m_vdp1_legacy.framebuffer_display_lines[y];
 			if ( interlace_framebuffer == 0 )
 			{
 				bitmap_line = &bitmap.pix(y);
@@ -9400,7 +9052,7 @@ uint32_t saturn_state::screen_update_vdp2(screen_device &screen, bitmap_rgb32 &b
 
 	vdp2_draw_back(m_tmpbitmap,cliprect);
 
-	if(VDP2_DISP)
+	if(m_vdp2->get_disp())
 	{
 		uint8_t pri;
 

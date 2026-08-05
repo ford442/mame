@@ -142,8 +142,8 @@ namespace {
 class mitchell_state : public driver_device
 {
 public:
-	mitchell_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
+	mitchell_state(const machine_config &mconfig, device_type type, const char *tag) :
+		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_oki(*this, "oki"),
 		m_nvram(*this, "nvram"),
@@ -159,7 +159,8 @@ public:
 		m_sys0(*this, "SYS0"),
 		m_in(*this, "IN%u", 0U),
 		m_dial_in(*this, "DIAL%u", 1U),
-		m_key{ { *this, "KEY%u", 0U }, { *this, "KEY%u", 5U } } { }
+		m_key{ { *this, "KEY%u", 0U }, { *this, "KEY%u", 5U } }
+	{ }
 
 	void mgakuen(machine_config &config);
 	void marukin(machine_config &config);
@@ -261,12 +262,13 @@ protected:
 class spangbl_state : public mitchell_state
 {
 public:
-	spangbl_state(const machine_config &mconfig, device_type type, const char *tag)
-		: mitchell_state(mconfig, type, tag),
+	spangbl_state(const machine_config &mconfig, device_type type, const char *tag) :
+		mitchell_state(mconfig, type, tag),
 		m_audiocpu(*this, "audiocpu"),
 		m_msm(*this, "msm"),
 		m_adpcm_select(*this, "adpcm_select"),
-		m_soundbank(*this, "soundbank") { }
+		m_soundbank(*this, "soundbank")
+	{ }
 
 	void mstworld2(machine_config &config);
 	void pangba(machine_config &config);
@@ -305,9 +307,10 @@ private:
 class mstworld_state : public mitchell_state
 {
 public:
-	mstworld_state(const machine_config &mconfig, device_type type, const char *tag)
-		: mitchell_state(mconfig, type, tag),
-		m_audiocpu(*this, "audiocpu") { }
+	mstworld_state(const machine_config &mconfig, device_type type, const char *tag) :
+		mitchell_state(mconfig, type, tag),
+		m_audiocpu(*this, "audiocpu")
+	{ }
 
 	void mstworld(machine_config &config);
 
@@ -326,9 +329,10 @@ private:
 class pkladiesbl_state : public mitchell_state
 {
 public:
-	pkladiesbl_state(const machine_config &mconfig, device_type type, const char *tag)
-		: mitchell_state(mconfig, type, tag),
-		m_msm(*this, "msm") { }
+	pkladiesbl_state(const machine_config &mconfig, device_type type, const char *tag) :
+		mitchell_state(mconfig, type, tag),
+		m_msm(*this, "msm")
+	{ }
 
 	void pkladiesbl(machine_config &config);
 
@@ -605,7 +609,7 @@ uint8_t mitchell_state::block_input_r(offs_t offset)
 			delta = (-delta) & 0xff;
 			if (m_dir[offset])
 			{
-			// don't report movement on a direction change, otherwise it will stutter
+				// don't report movement on a direction change, otherwise it will stutter
 				m_dir[offset] = 0;
 				delta = 0;
 			}
@@ -614,7 +618,7 @@ uint8_t mitchell_state::block_input_r(offs_t offset)
 		{
 			if (!m_dir[offset])
 			{
-			// don't report movement on a direction change, otherwise it will stutter
+				// don't report movement on a direction change, otherwise it will stutter
 				m_dir[offset] = 1;
 				delta = 0;
 			}
@@ -1792,7 +1796,7 @@ void mitchell_state::mgakuen(machine_config &config)
 	EEPROM_93C46_16BIT(config, m_eeprom);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	screen.set_size(64*8, 32*8);
@@ -1825,7 +1829,7 @@ void mitchell_state::pang(machine_config &config)
 	EEPROM_93C46_16BIT(config, m_eeprom);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(57.42);   // verified on PCB
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	screen.set_size(64*8, 32*8);
@@ -1909,7 +1913,7 @@ void spangbl_state::spangbl(machine_config &config)
 	m_msm->set_prescaler_selector(msm5205_device::S96_4B);
 	m_msm->add_route(ALL_OUTPUTS, "mono", 0.50);
 
-	LS157(config, m_adpcm_select, 0);
+	LS157(config, m_adpcm_select);
 	m_adpcm_select->out_callback().set("msm", FUNC(msm5205_device::data_w));
 }
 
@@ -1946,7 +1950,7 @@ void mstworld_state::mstworld(machine_config &config)
 	m_audiocpu->set_addrmap(AS_PROGRAM, &mstworld_state::sound_map);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	screen.set_size(64*8, 32*8);
@@ -2005,7 +2009,7 @@ void pkladiesbl_state::pkladiesbl(machine_config &config)
 	EEPROM_93C46_16BIT(config, m_eeprom);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(59.09); // verified on PCB
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	screen.set_size(64*8, 32*8);
@@ -2070,7 +2074,7 @@ ROM_START( 7toitsu )
 	ROM_LOAD( "mg-5.1c",      0x00000, 0x80000, CRC(170332f1) SHA1(bc60f144a224f348fd5b8c0207e18a881f739fc1) )  // banked
 ROM_END
 
-ROM_START( mgakuen2 )
+ROM_START( mgakuen2 ) // 63121-A-2 MADE IN JAPAN CG-2
 	ROM_REGION( 0x50000, "maincpu", 0 )
 	ROM_LOAD( "mg2-xf.1j",    0x00000, 0x08000, CRC(c8165d2d) SHA1(95146e293b2e005c4015590811119a4070dda65b) )
 	ROM_LOAD( "mg2-y.1l",     0x10000, 0x20000, CRC(75bbcc14) SHA1(52ec279fda131c8de06d8c940df12d61ec6881cc) )

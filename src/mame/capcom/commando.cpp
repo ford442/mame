@@ -45,6 +45,7 @@ BTANB:
   the bottom of the screen for 1 frame
 
 Notes by Jose Tejada (jotego):
+
 The main CPU frequency is 3 MHz, after a two-stage FF clock divider.
 The CPU clock is gated by bus arbitration logic. The CPU clock is halted until
 video hardware has an opening in memory access, then the CPU is allowed to access
@@ -567,7 +568,7 @@ void commando_state::commando(machine_config &config)
 	TIMER(config, "scantimer").configure_scanline(FUNC(commando_state::scanline), "screen", 0, 1);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(MAIN / 2, 384, 0, 256, 262, 16, 240); // hsync is 306..333 (offset by 128), vsync is 251..253 (offset by 6)
 	screen.set_screen_update(FUNC(commando_state::screen_update));
 	screen.set_palette(m_palette);
