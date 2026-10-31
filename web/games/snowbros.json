@@ -1,0 +1,27 @@
+{
+  "id": "snowbros",
+  "title": "Snow Bros - Nick & Tom",
+  "driver": "snowbros",
+  "rom": {
+    "file": "snowbros.zip",
+    "embedPath": "/roms/snowbros.zip"
+  },
+  "build": {
+    "subtarget": "snowbros_web",
+    "sources": ["src/mame/kaneko/snowbros.cpp"],
+    "outputJs": "snowbros_web.js"
+  },
+  "ui": {
+    "aspectRatio": "4:3",
+    "controls": [
+      { "label": "Up", "mameKey": "ArrowUp", "defaultKey": "ArrowUp" },
+      { "label": "Down", "mameKey": "ArrowDown", "defaultKey": "ArrowDown" },
+      { "label": "Left", "mameKey": "ArrowLeft", "defaultKey": "ArrowLeft" },
+      { "label": "Right", "mameKey": "ArrowRight", "defaultKey": "ArrowRight" },
+      { "label": "Attack", "mameKey": "k", "defaultKey": "k" },
+      { "label": "Jump", "mameKey": "l", "defaultKey": "l" },
+      { "label": "Start", "mameKey": "1", "defaultKey": "1" },
+      { "label": "Coin", "mameKey": "5", "defaultKey": "5" }
+    ]
+  }
+}

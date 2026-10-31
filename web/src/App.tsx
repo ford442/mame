@@ -18,6 +18,20 @@ interface JSMAMEType {
   hard_reset?: () => void;
 }
 
+interface GameProfile {
+  title: string;
+  driver: string;
+  build: {
+    outputJs: string;
+  };
+  ui: {
+    aspectRatio: string;
+    controls: { label: string; mameKey: string; defaultKey: string }[];
+  };
+}
+
+declare const GAME_PROFILE: GameProfile;
+
 declare global {
   interface Window {
     Module: MAMEModuleType;
@@ -25,20 +39,8 @@ declare global {
   }
 }
 
-// Configuration - path to the compiled MAME JavaScript file
-const MAME_JS_PATH = process.env.REACT_APP_MAME_JS_PATH || 'gng_web.js';
-
-// Default Controls for GNG
-const CONTROLS = [
-  { label: 'Up', mameKey: 'ArrowUp', defaultKey: 'ArrowUp' },
-  { label: 'Down', mameKey: 'ArrowDown', defaultKey: 'ArrowDown' },
-  { label: 'Left', mameKey: 'ArrowLeft', defaultKey: 'ArrowLeft' },
-  { label: 'Right', mameKey: 'ArrowRight', defaultKey: 'ArrowRight' },
-  { label: 'Attack', mameKey: 'k', defaultKey: 'k' },
-  { label: 'Jump', mameKey: 'l', defaultKey: 'l' },
-  { label: 'Start', mameKey: '1', defaultKey: '1' },
-  { label: 'Coin', mameKey: '5', defaultKey: '5' },
-];
+const CONTROLS = GAME_PROFILE.ui.controls;
+const [ASPECT_WIDTH, ASPECT_HEIGHT] = GAME_PROFILE.ui.aspectRatio.split(':').map(Number);
 
 const App = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -90,11 +92,11 @@ const App = () => {
         const maxHeight = parent.clientHeight;
 
         let targetWidth = maxWidth;
-        let targetHeight = targetWidth * 3 / 4;
+        let targetHeight = targetWidth * ASPECT_HEIGHT / ASPECT_WIDTH;
 
         if (targetHeight > maxHeight) {
           targetHeight = maxHeight;
-          targetWidth = targetHeight * 4 / 3;
+          targetWidth = targetHeight * ASPECT_WIDTH / ASPECT_HEIGHT;
         }
 
         // Apply calculated dimensions to style (for display)
@@ -135,7 +137,7 @@ const App = () => {
       window.Module = {
         canvas: canvasRef.current,
         arguments: [
-            'gng',
+            GAME_PROFILE.driver,
             '-rompath', '/roms',
             '-window',
             '-verbose',
@@ -154,7 +156,7 @@ const App = () => {
 
       // Load the MAME JavaScript file
       const script = document.createElement('script');
-      script.src = MAME_JS_PATH;
+      script.src = GAME_PROFILE.build.outputJs;
       script.async = true;
       script.onload = () => {
         console.log('MAME script loaded');
@@ -226,7 +228,7 @@ const App = () => {
       {showDebug && <GamepadVisualizer />}
       <header className="app-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h1>MAME Web - Ghosts 'n Goblins</h1>
+            <h1>MAME Web - {GAME_PROFILE.title}</h1>
             <button
                 onClick={() => setShowDebug(!showDebug)}
                 style={{ padding: '0.5rem', fontSize: '0.9rem', backgroundColor: '#4b5563' }}
