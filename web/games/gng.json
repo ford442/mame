@@ -1,0 +1,27 @@
+{
+  "id": "gng",
+  "title": "Ghosts 'n Goblins",
+  "driver": "gng",
+  "rom": {
+    "file": "gng.zip",
+    "embedPath": "/roms/gng.zip"
+  },
+  "build": {
+    "subtarget": "gng_web",
+    "sources": ["src/mame/capcom/gng.cpp"],
+    "outputJs": "gng_web.js"
+  },
+  "ui": {
+    "aspectRatio": "4:3",
+    "controls": [
+      { "label": "Up", "mameKey": "ArrowUp", "defaultKey": "ArrowUp" },
+      { "label": "Down", "mameKey": "ArrowDown", "defaultKey": "ArrowDown" },
+      { "label": "Left", "mameKey": "ArrowLeft", "defaultKey": "ArrowLeft" },
+      { "label": "Right", "mameKey": "ArrowRight", "defaultKey": "ArrowRight" },
+      { "label": "Attack", "mameKey": "k", "defaultKey": "k" },
+      { "label": "Jump", "mameKey": "l", "defaultKey": "l" },
+      { "label": "Start", "mameKey": "1", "defaultKey": "1" },
+      { "label": "Coin", "mameKey": "5", "defaultKey": "5" }
+    ]
+  }
+}

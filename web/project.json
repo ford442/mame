@@ -28,7 +28,7 @@
       "options": {
         "outputPath": "web/dist",
         "index": "web/src/index.html",
-        "main": "web/src/index_snowbros.tsx",
+        "main": "web/src/index.tsx",
         "tsConfig": "web/tsconfig.json",
         "assets": ["web/src/assets"]
       },
